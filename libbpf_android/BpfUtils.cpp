@@ -265,28 +265,22 @@ BpfLevel getBpfSupportLevel() {
     int kernel_version_major;
     int kernel_version_minor;
 
-    uint64_t api_level = GetUintProperty<uint64_t>("ro.product.first_api_level", 0);
-    if (api_level == 0) {
-        ALOGE("Cannot determine initial API level of the device");
-        api_level = GetUintProperty<uint64_t>("ro.build.version.sdk", 0);
-    }
-
-    // Check if the device is shipped originally with android P.
-    if (api_level < MINIMUM_API_REQUIRED) return BpfLevel::NONE;
-
+    // Check the device kernel version
     int ret = uname(&buf);
-    if (ret) {
-        return BpfLevel::NONE;
-    }
+    if (ret) return BpfLevel::NONE;
     char dummy;
     ret = sscanf(buf.release, "%d.%d%c", &kernel_version_major, &kernel_version_minor, &dummy);
-    // Check the device kernel version
     if (ret < 2) return BpfLevel::NONE;
-    if (kernel_version_major > 4 || (kernel_version_major == 4 && kernel_version_minor >= 14))
+    if (kernel_version_major > 4)  // 5.4+ R+
         return BpfLevel::EXTENDED;
-    if (kernel_version_major == 4 && kernel_version_minor >= 9) return BpfLevel::BASIC;
+    if (kernel_version_major == 4 && kernel_version_minor >= 19)  // 4.19 Q+
+        return BpfLevel::EXTENDED;
+    if (kernel_version_major == 4 && kernel_version_minor >= 14)  // 4.14 P+
+        return BpfLevel::EXTENDED;
+    if (kernel_version_major == 4 && kernel_version_minor >= 9)  // 4.9 P+
+        return BpfLevel::BASIC;
 
-    return BpfLevel::NONE;
+    return BpfLevel::NONE;  // 4.4-P
 }
 
 }  // namespace bpf
