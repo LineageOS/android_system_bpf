@@ -49,6 +49,14 @@ class BpfLoadTest : public TestWithParam<std::string> {
 
         auto progPath = android::base::GetExecutableDirectory() + "/" + GetParam() + ".o";
         bool critical = true;
+
+        bpf_prog_type kAllowed[] = {
+                BPF_PROG_TYPE_UNSPEC,
+        };
+        EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical, "", kAllowed,
+                                         arraysize(kAllowed)),
+                  -1);
+
         EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical), 0);
         EXPECT_EQ(false, critical);
 

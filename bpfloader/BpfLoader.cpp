@@ -39,6 +39,7 @@
 #include <sys/types.h>
 
 #include <android-base/logging.h>
+#include <android-base/macros.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
@@ -52,10 +53,22 @@
 using android::base::EndsWith;
 using std::string;
 
-struct {
+// see b/162057235. For arbitrary program types, the concern is that due to the lack of
+// SELinux access controls over BPF program attachpoints, we have no way to control the
+// attachment of programs to shared resources (or to detect when a shared resource
+// has one BPF program replace another that is attached there)
+constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
+        BPF_PROG_TYPE_TRACEPOINT,
+};
+
+struct Location {
     const char* const dir;
     const char* const prefix;
-} locations[] = {
+    const bpf_prog_type* allowedProgTypes = nullptr;
+    size_t allowedProgTypesLength = 0;
+};
+
+const Location locations[] = {
         // Tethering mainline module: tether offload
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/",
@@ -71,23 +84,32 @@ struct {
                 .dir = "/system/etc/bpf/",
                 .prefix = "",
         },
+        // Vendor operating system
+        {
+                .dir = "/vendor/etc/bpf/",
+                .prefix = "vendor/",
+                .allowedProgTypes = kVendorAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kVendorAllowedProgTypes),
+        },
 };
 
-int loadAllElfObjects(const char* const progDir, const char* const prefix) {
+int loadAllElfObjects(const Location& location) {
     int retVal = 0;
     DIR* dir;
     struct dirent* ent;
 
-    if ((dir = opendir(progDir)) != NULL) {
+    if ((dir = opendir(location.dir)) != NULL) {
         while ((ent = readdir(dir)) != NULL) {
             string s = ent->d_name;
             if (!EndsWith(s, ".o")) continue;
 
-            string progPath(progDir);
+            string progPath(location.dir);
             progPath += s;
 
             bool critical;
-            int ret = android::bpf::loadProg(progPath.c_str(), &critical, prefix);
+            int ret = android::bpf::loadProg(progPath.c_str(), &critical, location.prefix,
+                                             location.allowedProgTypes,
+                                             location.allowedProgTypesLength);
             if (ret) {
                 if (critical) retVal = ret;
                 ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), std::strerror(-ret));
@@ -122,9 +144,9 @@ int main(int argc, char** argv) {
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
     // Load all ELF objects, create programs and maps, and pin them
-    for (const auto location : locations) {
+    for (const auto& location : locations) {
         createSysFsBpfSubDir(location.prefix);
-        if (loadAllElfObjects(location.dir, location.prefix) != 0) {
+        if (loadAllElfObjects(location) != 0) {
             ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS FROM %s ===", location.dir);
             ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
             ALOGE("If this triggers randomly, you might be hitting some memory allocation "
