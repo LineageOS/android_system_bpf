@@ -265,6 +265,10 @@ BpfLevel getBpfSupportLevel() {
     int kernel_version_major;
     int kernel_version_minor;
 
+    uint64_t diableBpf = GetUintProperty<uint64_t>("ro.bpf.disabled", 0);
+    if (disableBpf == 1)
+        return BpfLevel::NONE;
+
     // Check the device kernel version
     int ret = uname(&buf);
     if (ret) return BpfLevel::NONE;
