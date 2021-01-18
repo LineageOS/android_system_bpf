@@ -26,6 +26,8 @@ cc_library_headers {
         },
     },
     sdk_version: "30",
+    header_libs: ["bpf_syscall_wrappers"],
+    export_header_lib_headers: ["bpf_syscall_wrappers"],
 }
 
 cc_library {

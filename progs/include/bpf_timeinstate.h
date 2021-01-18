@@ -19,6 +19,10 @@
 
 #define BPF_FS_PATH "/sys/fs/bpf/"
 
+// Number of frequencies tracked in the array with total time. If some CPUs have
+// more than 64 freqs
+// // available, the overflow is stored in the last entry.
+#define MAX_FREQS_FOR_TOTAL 64
 // Number of frequencies for which a UID's times can be tracked in a single map entry. If some CPUs
 // have more than 32 freqs available, a single UID is tracked using 2 or more entries.
 #define FREQS_PER_ENTRY 32

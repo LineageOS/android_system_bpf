@@ -34,7 +34,6 @@
 #include <sstream>
 #include <string>
 
-#include <android-base/properties.h>
 #include <android-base/unique_fd.h>
 #include <log/log.h>
 #include <processgroup/processgroup.h>
@@ -137,22 +136,8 @@ static BpfLevel getUncachedBpfSupportLevel() {
     if (kver >= KVER(4, 19, 0)) return BpfLevel::EXTENDED_4_19;
     if (kver >= KVER(4, 14, 0)) return BpfLevel::EXTENDED_4_14;
 
-    // Override for devices launched with O but now on a 4.9-P+ kernel.
-    bool ebpf_supported = base::GetBoolProperty("ro.kernel.ebpf.supported", false);
-    if (ebpf_supported) return BpfLevel::BASIC_4_9;
-
-    uint64_t api_level = base::GetUintProperty<uint64_t>("ro.product.first_api_level", 0);
-    if (api_level == 0) {
-        ALOGE("Cannot determine initial API level of the device");
-        api_level = base::GetUintProperty<uint64_t>("ro.build.version.sdk", 0);
-    }
-
-    // Check if the device is shipped originally with android P.
-    if (api_level < MINIMUM_API_REQUIRED) return BpfLevel::NONE;
-
-    if (kver >= KVER(4, 9, 0)) return BpfLevel::BASIC_4_9;
-
-    return BpfLevel::NONE;
+    // Basic BPF support is required on all devices.
+    return BpfLevel::BASIC_4_9;
 }
 
 BpfLevel getBpfSupportLevel() {
