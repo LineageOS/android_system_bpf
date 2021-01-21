@@ -47,18 +47,18 @@
  * This will make sure that if you change the type of a map you'll get compile
  * errors at any spots you forget to update with the new type.
  *
- * Note: these all take 'const void* map' because from the C/eBPF point of view
+ * Note: these all take pointers to const map because from the C/eBPF point of view
  * the map struct is really just a readonly map definition of the in kernel object.
  * Runtime modification of the map defining struct is meaningless, since
  * the contents is only ever used during bpf program loading & map creation
  * by the bpf loader, and not by the eBPF program itself.
  */
-static void* (*bpf_map_lookup_elem_unsafe)(const void* map,
+static void* (*bpf_map_lookup_elem_unsafe)(const struct bpf_map_def* map,
                                            const void* key) = (void*)BPF_FUNC_map_lookup_elem;
-static int (*bpf_map_update_elem_unsafe)(const void* map, const void* key, const void* value,
-                                         unsigned long long flags) = (void*)
+static int (*bpf_map_update_elem_unsafe)(const struct bpf_map_def* map, const void* key,
+                                         const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_map_update_elem;
-static int (*bpf_map_delete_elem_unsafe)(const void* map,
+static int (*bpf_map_delete_elem_unsafe)(const struct bpf_map_def* map,
                                          const void* key) = (void*)BPF_FUNC_map_delete_elem;
 
 /* type safe macro to declare a map and related accessor functions */

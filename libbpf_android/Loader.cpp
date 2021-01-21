@@ -126,11 +126,8 @@ static int readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable)
 /* Read a section by its index - for ex to get sec hdr strtab blob */
 static int readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
     vector<Elf64_Shdr> shTable;
-    int entries, ret = 0;
-
-    ret = readSectionHeadersAll(elfFile, shTable);
+    int ret = readSectionHeadersAll(elfFile, shTable);
     if (ret) return ret;
-    entries = shTable.size();
 
     elfFile.seekg(shTable[id].sh_offset);
     if (elfFile.fail()) return -1;
@@ -144,9 +141,7 @@ static int readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
 /* Read whole section header string table */
 static int readSectionHeaderStrtab(ifstream& elfFile, vector<char>& strtab) {
     Elf64_Ehdr eh;
-    int ret = 0;
-
-    ret = readElfHeader(elfFile, &eh);
+    int ret = readElfHeader(elfFile, &eh);
     if (ret) return ret;
 
     ret = readSectionByIdx(elfFile, eh.e_shstrndx, strtab);
@@ -408,7 +403,8 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
     return getSymName(elfFile, symtab[index].st_name, name);
 }
 
-static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds) {
+static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
+                      const char* prefix) {
     int ret;
     vector<char> mdData;
     vector<struct bpf_map_def> md;
@@ -426,11 +422,11 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
         unique_fd fd;
-        // Format of pin location is /sys/fs/bpf/map_<filename>_<mapname>
+        // Format of pin location is /sys/fs/bpf/<prefix>map_<filename>_<mapname>
         string mapPinLoc;
         bool reuse = false;
 
-        mapPinLoc = string(BPF_FS_PATH) + "map_" + fname + "_" + string(mapNames[i]);
+        mapPinLoc = string(BPF_FS_PATH) + prefix + "map_" + fname + "_" + string(mapNames[i]);
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             fd.reset(bpf_obj_get(mapPinLoc.c_str()));
             ALOGD("bpf_create_map reusing map %s, ret: %d\n", mapNames[i].c_str(), fd.get());
@@ -532,7 +528,8 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license) {
+static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
+                            const char* prefix) {
     unsigned kvers = kernelVersion();
     int ret, fd;
 
@@ -559,8 +556,10 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
         bool reuse = false;
         // Format of pin location is
-        // /sys/fs/bpf/prog_<filename>_<mapname>
-        string progPinLoc = BPF_FS_PATH "prog_";
+        // /sys/fs/bpf/<prefix>prog_<filename>_<mapname>
+        string progPinLoc = BPF_FS_PATH;
+        progPinLoc += prefix;
+        progPinLoc += "prog_";
         progPinLoc += fname;
         progPinLoc += '_';
         progPinLoc += name;
@@ -614,7 +613,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     return 0;
 }
 
-int loadProg(const char* elfPath, bool* isCritical) {
+int loadProg(const char* elfPath, bool* isCritical, const char* prefix) {
     vector<char> license;
     vector<char> critical;
     vector<codeSection> cs;
@@ -649,7 +648,7 @@ int loadProg(const char* elfPath, bool* isCritical) {
     /* Just for future debugging */
     if (0) dumpAllCs(cs);
 
-    ret = createMaps(elfPath, elfFile, mapFds);
+    ret = createMaps(elfPath, elfFile, mapFds, prefix);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s\n", ret, elfPath);
         return ret;
@@ -660,7 +659,7 @@ int loadProg(const char* elfPath, bool* isCritical) {
 
     applyMapRelo(elfFile, mapFds, cs);
 
-    ret = loadCodeSections(elfPath, cs, string(license.data()));
+    ret = loadCodeSections(elfPath, cs, string(license.data()), prefix);
     if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d\n", ret);
 
     return ret;
@@ -674,8 +673,6 @@ static bool waitSecondsForProgsLoaded(int seconds) {
 }
 
 void waitForProgsLoaded() {
-    if (!android::bpf::isBpfSupported()) return;
-
     if (waitSecondsForProgsLoaded(5)) return;
     if (waitSecondsForProgsLoaded(10)) return;
     if (waitSecondsForProgsLoaded(20)) return;
