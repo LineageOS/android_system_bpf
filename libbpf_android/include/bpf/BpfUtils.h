@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef BPF_BPFUTILS_H
-#define BPF_BPFUTILS_H
+#pragma once
 
 #include <linux/if_ether.h>
 #include <net/if.h>
@@ -33,8 +32,6 @@ namespace bpf {
 constexpr const int OVERFLOW_COUNTERSET = 2;
 
 constexpr const uint64_t NONEXISTENT_COOKIE = 0;
-
-constexpr const int MINIMUM_API_REQUIRED = 28;
 
 uint64_t getSocketCookie(int sockFd);
 int synchronizeKernelRCU();
@@ -68,5 +65,3 @@ static inline bool isAtLeastKernelVersion(unsigned major, unsigned minor, unsign
 
 }  // namespace bpf
 }  // namespace android
-
-#endif
