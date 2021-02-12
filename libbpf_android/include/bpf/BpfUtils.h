@@ -37,7 +37,7 @@ uint64_t getSocketCookie(int sockFd);
 int synchronizeKernelRCU();
 int setrlimitForTest();
 
-#define KVER(a, b, c) ((a)*65536 + (b)*256 + (c))
+#define KVER(a, b, c) (((a) << 24) + ((b) << 16) + (c))
 
 unsigned kernelVersion();
 
