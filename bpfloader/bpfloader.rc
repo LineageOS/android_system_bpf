@@ -23,7 +23,7 @@ on load_bpf_programs
     exec_start bpfloader
 
 service bpfloader /system/bin/bpfloader
-    capabilities CHOWN SYS_ADMIN
+    capabilities CHOWN SYS_ADMIN NET_ADMIN
     #
     # Set RLIMIT_MEMLOCK to 1GiB for bpfloader
     #
