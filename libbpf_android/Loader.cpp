@@ -446,7 +446,28 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             ALOGD("bpf_create_map reusing map %s, ret: %d\n", mapNames[i].c_str(), fd.get());
             reuse = true;
         } else {
-            fd.reset(bpf_create_map(md[i].type, mapNames[i].c_str(), md[i].key_size, md[i].value_size,
+            enum bpf_map_type type = md[i].type;
+            if (type == BPF_MAP_TYPE_DEVMAP && !isAtLeastKernelVersion(4, 14, 0)) {
+                // On Linux Kernels older than 4.14 this map type doesn't exist, but it can kind
+                // of be approximated: ARRAY has the same userspace api, though it is not usable
+                // by the same ebpf programs.  However, that's okay because the bpf_redirect_map()
+                // helper doesn't exist on 4.9 anyway (so the bpf program would fail to load,
+                // and thus needs to be tagged as 4.14+ either way), so there's nothing useful you
+                // could do with a DEVMAP anyway (that isn't already provided by an ARRAY)...
+                // Hence using an ARRAY instead of a DEVMAP simply makes life easier for userspace.
+                type = BPF_MAP_TYPE_ARRAY;
+            }
+            if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
+                // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
+                // of be approximated: HASH has the same userspace visible api.
+                // However it cannot be used by ebpf programs in the same way.
+                // Since bpf_redirect_map() only requires 4.14, a program using a DEVMAP_HASH map
+                // would fail to load (due to trying to redirect to a HASH instead of DEVMAP_HASH).
+                // One must thus tag any BPF_MAP_TYPE_DEVMAP_HASH + bpf_redirect_map() using
+                // programs as being 5.4+...
+                type = BPF_MAP_TYPE_HASH;
+            }
+            fd.reset(bpf_create_map(type, mapNames[i].c_str(), md[i].key_size, md[i].value_size,
                                     md[i].max_entries, md[i].map_flags));
             saved_errno = errno;
             ALOGD("bpf_create_map name %s, ret: %d\n", mapNames[i].c_str(), fd.get());
