@@ -36,6 +36,7 @@ cc_binary {
     ],
     sanitize: {
         integer_overflow: true,
+        memtag_heap: true,
     },
     clang: true,
     shared_libs: [
