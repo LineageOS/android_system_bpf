@@ -514,14 +514,14 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (BPFLOADER_VERSION < md[i].bpfloader_min_ver) {
             ALOGI("skipping map %s which requires bpfloader min ver 0x%05x\n", mapNames[i].c_str(),
                   md[i].bpfloader_min_ver);
-            mapFds.push_back(std::move(fd));  // -1
+            mapFds.push_back(unique_fd());
             continue;
         }
 
         if (BPFLOADER_VERSION >= md[i].bpfloader_max_ver) {
             ALOGI("skipping map %s which requires bpfloader max ver 0x%05x\n", mapNames[i].c_str(),
                   md[i].bpfloader_max_ver);
-            mapFds.push_back(std::move(fd));  // -1
+            mapFds.push_back(unique_fd());
             continue;
         }
 
