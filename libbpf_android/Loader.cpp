@@ -28,6 +28,12 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
+// This is BpfLoader 0.1, we need to define this prior to including bpf_map_def.h
+// to get the 0.1 struct definitions
+#define BPFLOADER_VERSION_MAJOR 0u
+#define BPFLOADER_VERSION_MINOR 1u
+#define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
+
 #include "../progs/include/bpf_map_def.h"
 #include "bpf/BpfUtils.h"
 #include "include/libbpf_android.h"
@@ -205,6 +211,29 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<char>& 
     return -2;
 }
 
+static unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int defVal) {
+    vector<char> theBytes;
+    int ret = readSectionByName(name, elfFile, theBytes);
+    if (ret) {
+        ALOGD("Couldn't find section %s (defaulting to %u [0x%x]).\n", name, defVal, defVal);
+        return defVal;
+    } else if (theBytes.size() < sizeof(unsigned int)) {
+        ALOGE("Section %s too short (defaulting to %u [0x%x]).\n", name, defVal, defVal);
+        return defVal;
+    } else {
+        // decode first 4 bytes as LE32 uint, there will likely be more bytes due to alignment.
+        unsigned int value = static_cast<unsigned char>(theBytes[3]);
+        value <<= 8;
+        value += static_cast<unsigned char>(theBytes[2]);
+        value <<= 8;
+        value += static_cast<unsigned char>(theBytes[1]);
+        value <<= 8;
+        value += static_cast<unsigned char>(theBytes[0]);
+        ALOGI("Section %s value is %u [0x%x]\n", name, value, value);
+        return value;
+    }
+}
+
 static int readSectionByType(ifstream& elfFile, int type, vector<char>& data) {
     int ret;
     vector<Elf64_Shdr> shTable;
@@ -281,14 +310,36 @@ static bool isRelSection(codeSection& cs, string& name) {
     return false;
 }
 
-static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd) {
+static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd,
+                        size_t sizeOfBpfProgDef) {
     vector<char> pdData;
     int ret = readSectionByName("progs", elfFile, pdData);
+    // Older file formats do not require a 'progs' section at all.
+    // (We should probably figure out whether this is behaviour which is safe to remove now.)
     if (ret == -2) return 0;
     if (ret) return ret;
 
-    pd.resize(pdData.size() / sizeof(struct bpf_prog_def));
-    memcpy(pd.data(), pdData.data(), pdData.size());
+    if (pdData.size() % sizeOfBpfProgDef) {
+        ALOGE("readProgDefs failed due to improper sized progs section, %zu %% %zu != 0\n",
+              pdData.size(), sizeOfBpfProgDef);
+        return -1;
+    };
+
+    int progCount = pdData.size() / sizeOfBpfProgDef;
+    pd.resize(progCount);
+    size_t trimmedSize = std::min(sizeOfBpfProgDef, sizeof(struct bpf_prog_def));
+
+    const char* dataPtr = pdData.data();
+    for (auto& p : pd) {
+        // First we zero initialize
+        memset(&p, 0, sizeof(p));
+        // Then we set non-zero defaults
+        p.bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER;  // v1.0
+        // Then we copy over the structure prefix from the ELF file.
+        memcpy(&p, dataPtr, trimmedSize);
+        // Move to next struct in the ELF file
+        dataPtr += sizeOfBpfProgDef;
+    }
     return 0;
 }
 
@@ -335,7 +386,7 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
 }
 
 /* Read a section by its index - for ex to get sec hdr strtab blob */
-static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
+static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs, size_t sizeOfBpfProgDef) {
     vector<Elf64_Shdr> shTable;
     int entries, ret = 0;
 
@@ -344,7 +395,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
     entries = shTable.size();
 
     vector<struct bpf_prog_def> pd;
-    ret = readProgDefs(elfFile, pd);
+    ret = readProgDefs(elfFile, pd, sizeOfBpfProgDef);
     if (ret) return ret;
     vector<string> progDefNames;
     ret = getSectionSymNames(elfFile, "progs", progDefNames);
@@ -416,7 +467,7 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
 }
 
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
-                      const char* prefix) {
+                      const char* prefix, size_t sizeOfBpfMapDef) {
     int ret;
     vector<char> mdData;
     vector<struct bpf_map_def> md;
@@ -426,8 +477,28 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     ret = readSectionByName("maps", elfFile, mdData);
     if (ret == -2) return 0;  // no maps to read
     if (ret) return ret;
-    md.resize(mdData.size() / sizeof(struct bpf_map_def));
-    memcpy(md.data(), mdData.data(), mdData.size());
+
+    if (mdData.size() % sizeOfBpfMapDef) {
+        ALOGE("createMaps failed due to improper sized maps section, %zu %% %zu != 0\n",
+              mdData.size(), sizeOfBpfMapDef);
+        return -1;
+    };
+
+    int mapCount = mdData.size() / sizeOfBpfMapDef;
+    md.resize(mapCount);
+    size_t trimmedSize = std::min(sizeOfBpfMapDef, sizeof(struct bpf_map_def));
+
+    const char* dataPtr = mdData.data();
+    for (auto& m : md) {
+        // First we zero initialize
+        memset(&m, 0, sizeof(m));
+        // Then we set non-zero defaults
+        m.bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER;  // v1.0
+        // Then we copy over the structure prefix from the ELF file.
+        memcpy(&m, dataPtr, trimmedSize);
+        // Move to next struct in the ELF file
+        dataPtr += sizeOfBpfMapDef;
+    }
 
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
@@ -436,10 +507,24 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         unique_fd fd;
         int saved_errno;
         // Format of pin location is /sys/fs/bpf/<prefix>map_<filename>_<mapname>
-        string mapPinLoc;
+        string mapPinLoc =
+                string(BPF_FS_PATH) + prefix + "map_" + fname + "_" + string(mapNames[i]);
         bool reuse = false;
 
-        mapPinLoc = string(BPF_FS_PATH) + prefix + "map_" + fname + "_" + string(mapNames[i]);
+        if (BPFLOADER_VERSION < md[i].bpfloader_min_ver) {
+            ALOGI("skipping map %s which requires bpfloader min ver 0x%05x\n", mapNames[i].c_str(),
+                  md[i].bpfloader_min_ver);
+            mapFds.push_back(std::move(fd));  // -1
+            continue;
+        }
+
+        if (BPFLOADER_VERSION >= md[i].bpfloader_max_ver) {
+            ALOGI("skipping map %s which requires bpfloader max ver 0x%05x\n", mapNames[i].c_str(),
+                  md[i].bpfloader_max_ver);
+            mapFds.push_back(std::move(fd));  // -1
+            continue;
+        }
+
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             fd.reset(bpf_obj_get(mapPinLoc.c_str()));
             saved_errno = errno;
@@ -574,6 +659,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
     for (int i = 0; i < (int)cs.size(); i++) {
         string name = cs[i].name;
+        unsigned bpfMinVer = DEFAULT_BPFLOADER_MIN_VER;  // v0.0
+        unsigned bpfMaxVer = DEFAULT_BPFLOADER_MAX_VER;  // v1.0
 
         if (cs[i].prog_def.has_value()) {
             unsigned min_kver = cs[i].prog_def->min_kver;
@@ -582,7 +669,15 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                   max_kver, kvers);
             if (kvers < min_kver) continue;
             if (kvers >= max_kver) continue;
+
+            bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
+            bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
         }
+
+        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)\n", i, name.c_str(),
+              bpfMinVer, bpfMaxVer);
+        if (BPFLOADER_VERSION < bpfMinVer) continue;
+        if (BPFLOADER_VERSION >= bpfMaxVer) continue;
 
         // strip any potential $foo suffix
         // this can be used to provide duplicate programs
@@ -674,7 +769,46 @@ int loadProg(const char* elfPath, bool* isCritical, const char* prefix) {
               elfPath, (char*)license.data());
     }
 
-    ret = readCodeSections(elfFile, cs);
+    // the following default values are for bpfloader V0.0 format which does not include them
+    unsigned int bpfLoaderMinVer =
+            readSectionUint("bpfloader_min_ver", elfFile, DEFAULT_BPFLOADER_MIN_VER);
+    unsigned int bpfLoaderMaxVer =
+            readSectionUint("bpfloader_max_ver", elfFile, DEFAULT_BPFLOADER_MAX_VER);
+    size_t sizeOfBpfMapDef =
+            readSectionUint("size_of_bpf_map_def", elfFile, DEFAULT_SIZEOF_BPF_MAP_DEF);
+    size_t sizeOfBpfProgDef =
+            readSectionUint("size_of_bpf_prog_def", elfFile, DEFAULT_SIZEOF_BPF_PROG_DEF);
+
+    // inclusive lower bound check
+    if (BPFLOADER_VERSION < bpfLoaderMinVer) {
+        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with min ver 0x%05x\n",
+              BPFLOADER_VERSION, elfPath, bpfLoaderMinVer);
+        return 0;
+    }
+
+    // exclusive upper bound check
+    if (BPFLOADER_VERSION >= bpfLoaderMaxVer) {
+        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with max ver 0x%05x\n",
+              BPFLOADER_VERSION, elfPath, bpfLoaderMaxVer);
+        return 0;
+    }
+
+    ALOGI("BpfLoader version 0x%05x processing ELF object %s with ver [0x%05x,0x%05x)\n",
+          BPFLOADER_VERSION, elfPath, bpfLoaderMinVer, bpfLoaderMaxVer);
+
+    if (sizeOfBpfMapDef < DEFAULT_SIZEOF_BPF_MAP_DEF) {
+        ALOGE("sizeof(bpf_map_def) of %zu is too small (< %d)\n", sizeOfBpfMapDef,
+              DEFAULT_SIZEOF_BPF_MAP_DEF);
+        return -1;
+    }
+
+    if (sizeOfBpfProgDef < DEFAULT_SIZEOF_BPF_PROG_DEF) {
+        ALOGE("sizeof(bpf_prog_def) of %zu is too small (< %d)\n", sizeOfBpfProgDef,
+              DEFAULT_SIZEOF_BPF_PROG_DEF);
+        return -1;
+    }
+
+    ret = readCodeSections(elfFile, cs, sizeOfBpfProgDef);
     if (ret) {
         ALOGE("Couldn't read all code sections in %s\n", elfPath);
         return ret;
@@ -683,7 +817,7 @@ int loadProg(const char* elfPath, bool* isCritical, const char* prefix) {
     /* Just for future debugging */
     if (0) dumpAllCs(cs);
 
-    ret = createMaps(elfPath, elfFile, mapFds, prefix);
+    ret = createMaps(elfPath, elfFile, mapFds, prefix, sizeOfBpfMapDef);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s\n", ret, elfPath);
         return ret;
