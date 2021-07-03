@@ -42,9 +42,9 @@
  *                                                                            *
  ******************************************************************************/
 
-// For now we default to v0.0 format
+// We currently default to v0.1 format
 #ifndef BPFLOADER_VERSION
-#define BPFLOADER_VERSION 0u
+#define BPFLOADER_VERSION 1u
 #endif
 
 // These are the values used if these fields are missing
