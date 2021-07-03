@@ -6,11 +6,47 @@
 
 #include "bpf_map_def.h"
 
+/******************************************************************************
+ * WARNING: CHANGES TO THIS FILE OUTSIDE OF AOSP/MASTER ARE LIKELY TO BREAK   *
+ * DEVICE COMPATIBILITY WITH MAINLINE MODULES SHIPPING EBPF CODE.             *
+ *                                                                            *
+ * THIS WILL LIKELY RESULT IN BRICKED DEVICES AT SOME ARBITRARY FUTURE TIME   *
+ *                                                                            *
+ * THAT GOES ESPECIALLY FOR THE 'SEC' 'LICENSE' AND 'CRITICAL' MACRO DEFINES  *
+ *                                                                            *
+ * We strongly suggest that if you need changes to bpfloader functionality    *
+ * you get your changes reviewed and accepted into aosp/master.               *
+ *                                                                            *
+ ******************************************************************************/
+
 /* place things in different elf sections */
 #define SEC(NAME) __attribute__((section(NAME), used))
 
-/* Example use: LICENSE("GPL"); or LICENSE("Apache 2.0"); */
-#define LICENSE(NAME) char _license[] SEC("license") = (NAME)
+/* Must be present in every program, example usage:
+ *   LICENSE("GPL"); or LICENSE("Apache 2.0");
+ *
+ * We also take this opportunity to embed a bunch of other useful values in
+ * the resulting .o (This is to enable some limited forward compatibility
+ * with mainline module shipped ebpf programs)
+ *
+ * The bpfloader_{min/max}_ver defines the [min, max) range of bpfloader
+ * versions that should load this .o file (bpfloaders outside of this range
+ * will simply ignore/skip this *entire* .o)
+ * The [inclusive,exclusive) matches what we do for kernel ver dependencies.
+ *
+ * The size_of_bpf_{map,prog}_def allow the bpfloader to load programs where
+ * these structures have been extended with additional fields (they will of
+ * course simply be ignored then).
+ *
+ * If missing, bpfloader_{min/max}_ver default to 0/0x10000 ie. [v0.0, v1.0),
+ * while size_of_bpf_{map/prog}_def default to 32/20 which are the v0.0 sizes.
+ */
+#define LICENSE(NAME)                                                                       \
+    unsigned int _bpfloader_min_ver SEC("bpfloader_min_ver") = DEFAULT_BPFLOADER_MIN_VER;   \
+    unsigned int _bpfloader_max_ver SEC("bpfloader_max_ver") = DEFAULT_BPFLOADER_MAX_VER;   \
+    size_t _size_of_bpf_map_def SEC("size_of_bpf_map_def") = sizeof(struct bpf_map_def);    \
+    size_t _size_of_bpf_prog_def SEC("size_of_bpf_prog_def") = sizeof(struct bpf_prog_def); \
+    char _license[] SEC("license") = (NAME)
 
 /* flag the resulting bpf .o file as critical to system functionality,
  * loading all kernel version appropriate programs in it must succeed
@@ -68,6 +104,7 @@ static int (*bpf_map_delete_elem_unsafe)(const struct bpf_map_def* map,
             .key_size = sizeof(TypeOfKey),                                                       \
             .value_size = sizeof(TypeOfValue),                                                   \
             .max_entries = (num_entries),                                                        \
+            .map_flags = 0,                                                                      \
             .uid = (usr),                                                                        \
             .gid = (grp),                                                                        \
             .mode = (md),                                                                        \

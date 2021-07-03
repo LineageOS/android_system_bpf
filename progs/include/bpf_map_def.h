@@ -25,6 +25,34 @@
 // Pull in AID_* constants from //system/core/libcutils/include/private/android_filesystem_config.h
 #include <private/android_filesystem_config.h>
 
+/******************************************************************************
+ *                                                                            *
+ *                          ! ! ! W A R N I N G ! ! !                         *
+ *                                                                            *
+ * CHANGES TO THESE STRUCTURE DEFINITIONS OUTSIDE OF AOSP/MASTER *WILL* BREAK *
+ * MAINLINE MODULE COMPATIBILITY                                              *
+ *                                                                            *
+ * AND THUS MAY RESULT IN YOUR DEVICE BRICKING AT SOME ARBITRARY POINT IN     *
+ * THE FUTURE                                                                 *
+ *                                                                            *
+ * (and even in aosp/master you may only append new fields at the very end,   *
+ *  you may *never* delete fields, change their types, ordering, insert in    *
+ *  the middle, etc.  If a mainline module using the old definition has       *
+ *  already shipped (which happens roughly monthly), then it's set in stone)  *
+ *                                                                            *
+ ******************************************************************************/
+
+// For now we default to v0.0 format
+#ifndef BPFLOADER_VERSION
+#define BPFLOADER_VERSION 0u
+#endif
+
+// These are the values used if these fields are missing
+#define DEFAULT_BPFLOADER_MIN_VER 0u        // v0.0 (this is inclusive ie. >= v0.0)
+#define DEFAULT_BPFLOADER_MAX_VER 0x10000u  // v1.0 (this is exclusive ie. < v1.0)
+#define DEFAULT_SIZEOF_BPF_MAP_DEF 32       // v0.0 struct: enum + alignment padding + 7 uint
+#define DEFAULT_SIZEOF_BPF_PROG_DEF 20      // v0.0 struct: 4 uint + bool + alignment padding
+
 /*
  * Map structure to be used by Android eBPF C programs. The Android eBPF loader
  * uses this structure from eBPF object to create maps at boot time.
@@ -51,6 +79,12 @@ struct bpf_map_def {
     unsigned int uid;   // uid_t
     unsigned int gid;   // gid_t
     unsigned int mode;  // mode_t
+
+#if BPFLOADER_VERSION >= 1u
+    // The following fields were added in version 0.1
+    unsigned int bpfloader_min_ver;  // if missing, defaults to 0, ie. v0.0
+    unsigned int bpfloader_max_ver;  // if missing, defaults to 0x10000, ie. v1.0
+#endif
 };
 
 struct bpf_prog_def {
@@ -62,4 +96,10 @@ struct bpf_prog_def {
     unsigned int max_kver;
 
     bool optional;  // program section (ie. function) may fail to load, continue onto next func.
+
+#if BPFLOADER_VERSION >= 1u
+    // The following fields were added in version 0.1
+    unsigned int bpfloader_min_ver;  // if missing, defaults to 0, ie. v0.0
+    unsigned int bpfloader_max_ver;  // if missing, defaults to 0x10000, ie. v1.0
+#endif
 };
