@@ -108,6 +108,8 @@ static int (*bpf_map_delete_elem_unsafe)(const struct bpf_map_def* map,
             .uid = (usr),                                                                        \
             .gid = (grp),                                                                        \
             .mode = (md),                                                                        \
+            .bpfloader_min_ver = DEFAULT_BPFLOADER_MIN_VER,                                      \
+            .bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER,                                      \
     };                                                                                           \
                                                                                                  \
     static inline __always_inline __unused TypeOfValue* bpf_##the_map##_lookup_elem(             \
@@ -157,6 +159,8 @@ static unsigned long long (*bpf_get_smp_processor_id)(void) = (void*) BPF_FUNC_g
             .min_kver = (min_kv),                                                                  \
             .max_kver = (max_kv),                                                                  \
             .optional = (opt),                                                                     \
+            .bpfloader_min_ver = DEFAULT_BPFLOADER_MIN_VER,                                        \
+            .bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER,                                        \
     };                                                                                             \
     SEC(SECTION_NAME)                                                                              \
     int the_prog
