@@ -29,6 +29,9 @@ namespace bpf {
 // BPF loader implementation. Loads an eBPF ELF object
 int loadProg(const char* elfPath, bool* isCritical, const char* prefix = "");
 
+// Exposed for testing
+unsigned int readSectionUint(const char* name, std::ifstream& elfFile, unsigned int defVal);
+
 // Wait for bpfloader to load BPF programs.
 static inline void waitForProgsLoaded() {
     // infinite loop until success with 5/10/20/40/60/60/60... delay
