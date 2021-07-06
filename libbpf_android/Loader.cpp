@@ -210,7 +210,7 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<char>& 
     return -2;
 }
 
-static unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int defVal) {
+unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int defVal) {
     vector<char> theBytes;
     int ret = readSectionByName(name, elfFile, theBytes);
     if (ret) {
