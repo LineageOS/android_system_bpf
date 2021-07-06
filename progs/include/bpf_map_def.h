@@ -141,10 +141,15 @@ struct bpf_map_def {
     // The following fields were added in version 0.1
     unsigned int bpfloader_min_ver;  // if missing, defaults to 0, ie. v0.0
     unsigned int bpfloader_max_ver;  // if missing, defaults to 0x10000, ie. v1.0
+
+    // The following fields were added in version 0.2
+    // kernelVersion() must be >= min_kver and < max_kver
+    unsigned int min_kver;
+    unsigned int max_kver;
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
-_Static_assert(sizeof(struct bpf_map_def) == 40, "sizeof struct bpf_map_def != 40");
+_Static_assert(sizeof(struct bpf_map_def) == 48, "sizeof struct bpf_map_def != 48");
 _Static_assert(__alignof__(struct bpf_map_def) == 4, "__alignof__ struct bpf_map_def != 4");
 _Static_assert(_Alignof(struct bpf_map_def) == 4, "_Alignof struct bpf_map_def != 4");
 
@@ -162,6 +167,8 @@ struct bpf_prog_def {
     // The following fields were added in version 0.1
     unsigned int bpfloader_min_ver;  // if missing, defaults to 0, ie. v0.0
     unsigned int bpfloader_max_ver;  // if missing, defaults to 0x10000, ie. v1.0
+
+    // No new fields in version 0.2
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
