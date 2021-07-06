@@ -59,6 +59,10 @@
  * implemented in the kernel sources.
  */
 
+#define KVER_NONE 0
+#define KVER(a, b, c) (((a) << 24) + ((b) << 16) + (c))
+#define KVER_INF 0xFFFFFFFFu
+
 /* generic functions */
 
 /*
@@ -110,6 +114,8 @@ static int (*bpf_map_delete_elem_unsafe)(const struct bpf_map_def* map,
             .mode = (md),                                                                        \
             .bpfloader_min_ver = DEFAULT_BPFLOADER_MIN_VER,                                      \
             .bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER,                                      \
+            .min_kver = KVER_NONE,                                                               \
+            .max_kver = KVER_INF,                                                                \
     };                                                                                           \
                                                                                                  \
     static inline __always_inline __unused TypeOfValue* bpf_##the_map##_lookup_elem(             \
@@ -146,10 +152,6 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
 static unsigned long long (*bpf_get_current_pid_tgid)(void) = (void*) BPF_FUNC_get_current_pid_tgid;
 static unsigned long long (*bpf_get_current_uid_gid)(void) = (void*) BPF_FUNC_get_current_uid_gid;
 static unsigned long long (*bpf_get_smp_processor_id)(void) = (void*) BPF_FUNC_get_smp_processor_id;
-
-#define KVER_NONE 0
-#define KVER(a, b, c) (((a) << 24) + ((b) << 16) + (c))
-#define KVER_INF 0xFFFFFFFF
 
 #define DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
                                        opt)                                                        \

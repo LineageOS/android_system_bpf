@@ -28,10 +28,9 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-// This is BpfLoader 0.1, we need to define this prior to including bpf_map_def.h
-// to get the 0.1 struct definitions
+// This is BpfLoader v0.2
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 1u
+#define BPFLOADER_VERSION_MINOR 2u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "../progs/include/bpf_map_def.h"
@@ -494,6 +493,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         memset(&m, 0, sizeof(m));
         // Then we set non-zero defaults
         m.bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER;  // v1.0
+        m.max_kver = 0xFFFFFFFFu;                         // matches KVER_INF from bpf_helpers.h
         // Then we copy over the structure prefix from the ELF file.
         memcpy(&m, dataPtr, trimmedSize);
         // Move to next struct in the ELF file
@@ -503,14 +503,9 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
 
-    for (int i = 0; i < (int)mapNames.size(); i++) {
-        unique_fd fd;
-        int saved_errno;
-        // Format of pin location is /sys/fs/bpf/<prefix>map_<filename>_<mapname>
-        string mapPinLoc =
-                string(BPF_FS_PATH) + prefix + "map_" + fname + "_" + string(mapNames[i]);
-        bool reuse = false;
+    unsigned kvers = kernelVersion();
 
+    for (int i = 0; i < (int)mapNames.size(); i++) {
         if (BPFLOADER_VERSION < md[i].bpfloader_min_ver) {
             ALOGI("skipping map %s which requires bpfloader min ver 0x%05x\n", mapNames[i].c_str(),
                   md[i].bpfloader_min_ver);
@@ -524,6 +519,27 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             mapFds.push_back(unique_fd());
             continue;
         }
+
+        if (kvers < md[i].min_kver) {
+            ALOGI("skipping map %s which requires kernel version 0x%x >= 0x%x\n",
+                  mapNames[i].c_str(), kvers, md[i].min_kver);
+            mapFds.push_back(unique_fd());
+            continue;
+        }
+
+        if (kvers >= md[i].max_kver) {
+            ALOGI("skipping map %s which requires kernel version 0x%x < 0x%x\n",
+                  mapNames[i].c_str(), kvers, md[i].max_kver);
+            mapFds.push_back(unique_fd());
+            continue;
+        }
+
+        // Format of pin location is /sys/fs/bpf/<prefix>map_<filename>_<mapname>
+        string mapPinLoc =
+                string(BPF_FS_PATH) + prefix + "map_" + fname + "_" + string(mapNames[i]);
+        bool reuse = false;
+        unique_fd fd;
+        int saved_errno;
 
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             fd.reset(bpf_obj_get(mapPinLoc.c_str()));
