@@ -112,17 +112,22 @@ void createSysFsBpfSubDir(const char* const prefix) {
 }
 
 int main() {
-    // Load all ELF objects, create programs and maps, and pin them
-    for (const auto location : locations) {
-        createSysFsBpfSubDir(location.prefix);
-        if (loadAllElfObjects(location.dir, location.prefix) != 0) {
-            ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS FROM %s ===", location.dir);
-            ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
-            ALOGE("If this triggers randomly, you might be hitting some memory allocation "
-                  "problems or startup script race.");
-            ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
-            sleep(20);
-            return 2;
+
+    bool ebpf_supported = android::base::GetBoolProperty("ro.kernel.ebpf.supported", true);
+
+    if (ebpf_supported) {
+        // Load all ELF objects, create programs and maps, and pin them
+        for (const auto location : locations) {
+            createSysFsBpfSubDir(location.prefix);
+            if (loadAllElfObjects(location.dir, location.prefix) != 0) {
+                ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS FROM %s ===", location.dir);
+                ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
+                ALOGE("If this triggers randomly, you might be hitting some memory allocation "
+                      "problems or startup script race.");
+                ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
+                sleep(20);
+                return 2;
+            }
         }
     }
 
