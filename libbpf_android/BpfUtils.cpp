@@ -36,7 +36,6 @@
 
 #include <android-base/unique_fd.h>
 #include <log/log.h>
-#include <processgroup/processgroup.h>
 
 using android::base::unique_fd;
 
