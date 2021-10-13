@@ -28,9 +28,9 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.2
+// This is BpfLoader v0.3
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 2u
+#define BPFLOADER_VERSION_MINOR 3u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "../progs/include/bpf_map_def.h"
@@ -92,6 +92,7 @@ sectionType sectionNameTypes[] = {
         {"skfilter", BPF_PROG_TYPE_SOCKET_FILTER},
         {"cgroupskb", BPF_PROG_TYPE_CGROUP_SKB},
         {"schedcls", BPF_PROG_TYPE_SCHED_CLS},
+        {"schedact", BPF_PROG_TYPE_SCHED_ACT},
         {"cgroupsock", BPF_PROG_TYPE_CGROUP_SOCK},
         {"xdp", BPF_PROG_TYPE_XDP},
 
