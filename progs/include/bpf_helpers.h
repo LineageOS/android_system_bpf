@@ -19,6 +19,21 @@
  *                                                                            *
  ******************************************************************************/
 
+/* For mainline module use, you can #define BPFLOADER_{MIN/MAX}_VER
+ * before #include "bpf_helpers.h" to change which bpfloaders will
+ * process the resulting .o file.
+ *
+ * While this will work outside of mainline too, there just is no point to
+ * using it when the .o and the bpfloader ship in sync with each other.
+ */
+#ifndef BPFLOADER_MIN_VER
+#define BPFLOADER_MIN_VER DEFAULT_BPFLOADER_MIN_VER
+#endif
+
+#ifndef BPFLOADER_MAX_VER
+#define BPFLOADER_MAX_VER DEFAULT_BPFLOADER_MAX_VER
+#endif
+
 /* place things in different elf sections */
 #define SECTION(NAME) __attribute__((section(NAME), used))
 
@@ -42,8 +57,8 @@
  * while size_of_bpf_{map/prog}_def default to 32/20 which are the v0.0 sizes.
  */
 #define LICENSE(NAME)                                                                           \
-    unsigned int _bpfloader_min_ver SECTION("bpfloader_min_ver") = DEFAULT_BPFLOADER_MIN_VER;   \
-    unsigned int _bpfloader_max_ver SECTION("bpfloader_max_ver") = DEFAULT_BPFLOADER_MAX_VER;   \
+    unsigned int _bpfloader_min_ver SECTION("bpfloader_min_ver") = BPFLOADER_MIN_VER;           \
+    unsigned int _bpfloader_max_ver SECTION("bpfloader_max_ver") = BPFLOADER_MAX_VER;           \
     size_t _size_of_bpf_map_def SECTION("size_of_bpf_map_def") = sizeof(struct bpf_map_def);    \
     size_t _size_of_bpf_prog_def SECTION("size_of_bpf_prog_def") = sizeof(struct bpf_prog_def); \
     char _license[] SECTION("license") = (NAME)
