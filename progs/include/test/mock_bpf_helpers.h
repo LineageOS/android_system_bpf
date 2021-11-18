@@ -86,7 +86,7 @@ void mock_bpf_set_current_pid_tgid(uint64_t pid_tgid);
 #endif
 
 /* place things in different elf sections */
-#define SEC(NAME) __attribute__((section(NAME), used))
+#define SECTION(NAME) __attribute__((section(NAME), used))
 
 /* Example use: LICENSE("GPL"); or LICENSE("Apache 2.0"); */
-#define LICENSE(NAME) char _license[] SEC("license") = (NAME)
+#define LICENSE(NAME) char _license[] SECTION("license") = (NAME)

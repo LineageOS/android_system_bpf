@@ -116,10 +116,10 @@ _Static_assert(__alignof__(unsigned long long) == 8, "__alignof__ unsigned long 
  * uses this structure from eBPF object to create maps at boot time.
  *
  * The eBPF C program should define structure in the maps section using
- * SEC("maps") otherwise it will be ignored by the eBPF loader.
+ * SECTION("maps") otherwise it will be ignored by the eBPF loader.
  *
  * For example:
- *   const struct bpf_map_def SEC("maps") mymap { .type=... , .key_size=... }
+ *   const struct bpf_map_def SECTION("maps") mymap { .type=... , .key_size=... }
  *
  * See 'bpf_helpers.h' for helpful macros for eBPF program use.
  */
