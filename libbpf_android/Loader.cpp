@@ -81,10 +81,13 @@ typedef struct {
 
 /*
  * Map section name prefixes to program types, the section name will be:
- * SEC(<prefix>/<name-of-program>)
+ *   SECTION(<prefix>/<name-of-program>)
  * For example:
- * SEC("tracepoint/sched_switch_func") where sched_switch_funcs
+ *   SECTION("tracepoint/sched_switch_func") where sched_switch_funcs
  * is the name of the program, and tracepoint is the type.
+ *
+ * However, be aware that you should not be directly using the SECTION() macro.
+ * Instead use the DEFINE_(BPF|XDP)_(PROG|MAP)... & LICENSE/CRITICAL macros.
  */
 sectionType sectionNameTypes[] = {
         {"kprobe", BPF_PROG_TYPE_KPROBE},
