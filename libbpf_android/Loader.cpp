@@ -28,9 +28,9 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.6
+// This is BpfLoader v0.7
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 6u
+#define BPFLOADER_VERSION_MINOR 7u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "../progs/include/bpf_map_def.h"
@@ -90,18 +90,15 @@ typedef struct {
  * Instead use the DEFINE_(BPF|XDP)_(PROG|MAP)... & LICENSE/CRITICAL macros.
  */
 sectionType sectionNameTypes[] = {
-        {"kprobe", BPF_PROG_TYPE_KPROBE},
-        {"tracepoint", BPF_PROG_TYPE_TRACEPOINT},
-        {"skfilter", BPF_PROG_TYPE_SOCKET_FILTER},
-        {"cgroupskb", BPF_PROG_TYPE_CGROUP_SKB},
-        {"schedcls", BPF_PROG_TYPE_SCHED_CLS},
-        {"schedact", BPF_PROG_TYPE_SCHED_ACT},
-        {"cgroupsock", BPF_PROG_TYPE_CGROUP_SOCK},
-        {"xdp", BPF_PROG_TYPE_XDP},
-        {"cgroupsockaddr", BPF_PROG_TYPE_CGROUP_SOCK_ADDR},
-
-        /* End of table */
-        {"END", BPF_PROG_TYPE_UNSPEC},
+        {"cgroupskb/", BPF_PROG_TYPE_CGROUP_SKB},
+        {"cgroupsock/", BPF_PROG_TYPE_CGROUP_SOCK},
+        {"cgroupsockaddr/", BPF_PROG_TYPE_CGROUP_SOCK_ADDR},
+        {"kprobe/", BPF_PROG_TYPE_KPROBE},
+        {"schedact/", BPF_PROG_TYPE_SCHED_ACT},
+        {"schedcls/", BPF_PROG_TYPE_SCHED_CLS},
+        {"skfilter/", BPF_PROG_TYPE_SOCKET_FILTER},
+        {"tracepoint/", BPF_PROG_TYPE_TRACEPOINT},
+        {"xdp/", BPF_PROG_TYPE_XDP},
 };
 
 typedef struct {
@@ -283,8 +280,8 @@ static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
 }
 
 static enum bpf_prog_type getSectionType(string& name) {
-    for (int i = 0; sectionNameTypes[i].type != BPF_PROG_TYPE_UNSPEC; i++)
-        if (StartsWith(name, sectionNameTypes[i].name)) return sectionNameTypes[i].type;
+    for (auto& snt : sectionNameTypes)
+        if (StartsWith(name, snt.name)) return snt.type;
 
     return BPF_PROG_TYPE_UNSPEC;
 }
@@ -292,21 +289,19 @@ static enum bpf_prog_type getSectionType(string& name) {
 /* If ever needed
 static string getSectionName(enum bpf_prog_type type)
 {
-    for (int i = 0; sectionNameTypes[i].type != BPF_PROG_TYPE_UNSPEC; i++)
-        if (sectionNameTypes[i].type == type)
-            return string(sectionNameTypes[i].name);
+    for (auto& snt : sectionNameTypes)
+        if (snt.type == type)
+            return string(snt.name);
 
     return NULL;
 }
 */
 
 static bool isRelSection(codeSection& cs, string& name) {
-    for (int i = 0; sectionNameTypes[i].type != BPF_PROG_TYPE_UNSPEC; i++) {
-        sectionType st = sectionNameTypes[i];
+    for (auto& snt : sectionNameTypes) {
+        if (snt.type != cs.type) continue;
 
-        if (st.type != cs.type) continue;
-
-        if (StartsWith(name, string(".rel") + st.name + "/"))
+        if (StartsWith(name, string(".rel") + snt.name))
             return true;
         else
             return false;
