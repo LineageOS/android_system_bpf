@@ -28,9 +28,9 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.5
+// This is BpfLoader v0.6
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 5u
+#define BPFLOADER_VERSION_MINOR 6u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "../progs/include/bpf_map_def.h"
@@ -81,10 +81,13 @@ typedef struct {
 
 /*
  * Map section name prefixes to program types, the section name will be:
- * SEC(<prefix>/<name-of-program>)
+ *   SECTION(<prefix>/<name-of-program>)
  * For example:
- * SEC("tracepoint/sched_switch_func") where sched_switch_funcs
+ *   SECTION("tracepoint/sched_switch_func") where sched_switch_funcs
  * is the name of the program, and tracepoint is the type.
+ *
+ * However, be aware that you should not be directly using the SECTION() macro.
+ * Instead use the DEFINE_(BPF|XDP)_(PROG|MAP)... & LICENSE/CRITICAL macros.
  */
 sectionType sectionNameTypes[] = {
         {"kprobe", BPF_PROG_TYPE_KPROBE},

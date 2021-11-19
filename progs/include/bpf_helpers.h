@@ -12,15 +12,30 @@
  *                                                                            *
  * THIS WILL LIKELY RESULT IN BRICKED DEVICES AT SOME ARBITRARY FUTURE TIME   *
  *                                                                            *
- * THAT GOES ESPECIALLY FOR THE 'SEC' 'LICENSE' AND 'CRITICAL' MACRO DEFINES  *
+ * THAT GOES ESPECIALLY FOR THE 'SECTION' 'LICENSE' AND 'CRITICAL' MACROS     *
  *                                                                            *
  * We strongly suggest that if you need changes to bpfloader functionality    *
  * you get your changes reviewed and accepted into aosp/master.               *
  *                                                                            *
  ******************************************************************************/
 
+/* For mainline module use, you can #define BPFLOADER_{MIN/MAX}_VER
+ * before #include "bpf_helpers.h" to change which bpfloaders will
+ * process the resulting .o file.
+ *
+ * While this will work outside of mainline too, there just is no point to
+ * using it when the .o and the bpfloader ship in sync with each other.
+ */
+#ifndef BPFLOADER_MIN_VER
+#define BPFLOADER_MIN_VER DEFAULT_BPFLOADER_MIN_VER
+#endif
+
+#ifndef BPFLOADER_MAX_VER
+#define BPFLOADER_MAX_VER DEFAULT_BPFLOADER_MAX_VER
+#endif
+
 /* place things in different elf sections */
-#define SEC(NAME) __attribute__((section(NAME), used))
+#define SECTION(NAME) __attribute__((section(NAME), used))
 
 /* Must be present in every program, example usage:
  *   LICENSE("GPL"); or LICENSE("Apache 2.0");
@@ -41,18 +56,18 @@
  * If missing, bpfloader_{min/max}_ver default to 0/0x10000 ie. [v0.0, v1.0),
  * while size_of_bpf_{map/prog}_def default to 32/20 which are the v0.0 sizes.
  */
-#define LICENSE(NAME)                                                                       \
-    unsigned int _bpfloader_min_ver SEC("bpfloader_min_ver") = DEFAULT_BPFLOADER_MIN_VER;   \
-    unsigned int _bpfloader_max_ver SEC("bpfloader_max_ver") = DEFAULT_BPFLOADER_MAX_VER;   \
-    size_t _size_of_bpf_map_def SEC("size_of_bpf_map_def") = sizeof(struct bpf_map_def);    \
-    size_t _size_of_bpf_prog_def SEC("size_of_bpf_prog_def") = sizeof(struct bpf_prog_def); \
-    char _license[] SEC("license") = (NAME)
+#define LICENSE(NAME)                                                                           \
+    unsigned int _bpfloader_min_ver SECTION("bpfloader_min_ver") = BPFLOADER_MIN_VER;           \
+    unsigned int _bpfloader_max_ver SECTION("bpfloader_max_ver") = BPFLOADER_MAX_VER;           \
+    size_t _size_of_bpf_map_def SECTION("size_of_bpf_map_def") = sizeof(struct bpf_map_def);    \
+    size_t _size_of_bpf_prog_def SECTION("size_of_bpf_prog_def") = sizeof(struct bpf_prog_def); \
+    char _license[] SECTION("license") = (NAME)
 
 /* flag the resulting bpf .o file as critical to system functionality,
  * loading all kernel version appropriate programs in it must succeed
  * for bpfloader success
  */
-#define CRITICAL(REASON) char _critical[] SEC("critical") = (REASON)
+#define CRITICAL(REASON) char _critical[] SECTION("critical") = (REASON)
 
 /*
  * Helper functions called from eBPF programs written in C. These are
@@ -103,7 +118,7 @@ static int (*bpf_map_delete_elem_unsafe)(const struct bpf_map_def* map,
 
 /* type safe macro to declare a map and related accessor functions */
 #define DEFINE_BPF_MAP_UGM(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries, usr, grp, md)     \
-    const struct bpf_map_def SEC("maps") the_map = {                                             \
+    const struct bpf_map_def SECTION("maps") the_map = {                                         \
             .type = BPF_MAP_TYPE_##TYPE,                                                         \
             .key_size = sizeof(TypeOfKey),                                                       \
             .value_size = sizeof(TypeOfValue),                                                   \
@@ -155,7 +170,7 @@ static unsigned long long (*bpf_get_smp_processor_id)(void) = (void*) BPF_FUNC_g
 
 #define DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
                                        opt)                                                        \
-    const struct bpf_prog_def SEC("progs") the_prog##_def = {                                      \
+    const struct bpf_prog_def SECTION("progs") the_prog##_def = {                                  \
             .uid = (prog_uid),                                                                     \
             .gid = (prog_gid),                                                                     \
             .min_kver = (min_kv),                                                                  \
@@ -164,7 +179,7 @@ static unsigned long long (*bpf_get_smp_processor_id)(void) = (void*) BPF_FUNC_g
             .bpfloader_min_ver = DEFAULT_BPFLOADER_MIN_VER,                                        \
             .bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER,                                        \
     };                                                                                             \
-    SEC(SECTION_NAME)                                                                              \
+    SECTION(SECTION_NAME)                                                                          \
     int the_prog
 
 // Programs (here used in the sense of functions/sections) marked optional are allowed to fail
