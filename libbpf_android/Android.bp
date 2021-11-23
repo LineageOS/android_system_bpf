@@ -60,13 +60,13 @@ cc_library {
         "libutils",
         "libprocessgroup",
         "liblog",
-        "libbpf",
+        "libbpf_bcc",
     ],
     header_libs: [
         "libbpf_android_headers"
     ],
     export_header_lib_headers: ["libbpf_android_headers"],
-    export_shared_lib_headers: ["libbpf"],
+    export_shared_lib_headers: ["libbpf_bcc"],
     local_include_dirs: ["include"],
 
     defaults: ["bpf_defaults"],
@@ -91,7 +91,7 @@ cc_test {
     static_libs: ["libgmock"],
     shared_libs: [
         "libbpf_android",
-        "libbpf",
+        "libbpf_bcc",
         "libbase",
         "liblog",
         "libutils",
