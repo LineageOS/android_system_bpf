@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android-base/properties.h>
 #include <linux/if_ether.h>
 #include <net/if.h>
 #include <stdlib.h>
@@ -40,6 +41,9 @@ int setrlimitForTest();
 #define KVER(a, b, c) (((a) << 24) + ((b) << 16) + (c))
 
 unsigned kernelVersion();
+inline bool isBpfSupported() {
+    return android::base::GetBoolProperty("ro.kernel.ebpf.supported", true);
+}
 
 static inline bool isAtLeastKernelVersion(unsigned major, unsigned minor, unsigned sub) {
     return kernelVersion() >= KVER(major, minor, sub);
