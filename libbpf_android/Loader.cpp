@@ -28,9 +28,9 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.7
+// This is BpfLoader v0.8
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 7u
+#define BPFLOADER_VERSION_MINOR 8u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "../progs/include/bpf_map_def.h"
@@ -282,6 +282,13 @@ static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
 static enum bpf_prog_type getSectionType(string& name) {
     for (auto& snt : sectionNameTypes)
         if (StartsWith(name, snt.name)) return snt.type;
+
+    // TODO Remove this code when fuse-bpf is upstream and this BPF_PROG_TYPE_FUSE is fixed
+    if (StartsWith(name, "fuse/")) {
+        int result = BPF_PROG_TYPE_UNSPEC;
+        ifstream("/sys/fs/fuse/bpf_prog_type_fuse") >> result;
+        return static_cast<bpf_prog_type>(result);
+    }
 
     return BPF_PROG_TYPE_UNSPEC;
 }
