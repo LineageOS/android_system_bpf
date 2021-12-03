@@ -46,7 +46,6 @@ cc_library {
     target: {
         android: {
             srcs: [
-                "BpfUtils.cpp",
                 "Loader.cpp",
             ],
             sanitize: {
