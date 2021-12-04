@@ -19,8 +19,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <iostream>
-#include "include/bpf/BpfMap.h"
-#include "include/bpf/BpfUtils.h"
+#include "bpf/BpfMap.h"
+#include "bpf/BpfUtils.h"
 #include "include/libbpf_android.h"
 
 using ::testing::Test;
