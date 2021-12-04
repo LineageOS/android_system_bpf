@@ -61,9 +61,13 @@ cc_library {
         "libbpf",
     ],
     header_libs: [
-        "libbpf_android_headers"
+        "bpf_map_utils",
+        "libbpf_android_headers",
     ],
-    export_header_lib_headers: ["libbpf_android_headers"],
+    export_header_lib_headers: [
+        "libbpf_android_headers",
+        "bpf_map_utils",
+    ],
     export_shared_lib_headers: ["libbpf"],
     local_include_dirs: ["include"],
 
@@ -77,6 +81,7 @@ cc_library {
 
 cc_test {
     name: "libbpf_load_test",
+    header_libs: ["bpf_map_utils"],
     srcs: [
         "BpfLoadTest.cpp",
     ],
