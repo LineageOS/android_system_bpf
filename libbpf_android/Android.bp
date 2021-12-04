@@ -76,28 +76,6 @@ cc_library {
 }
 
 cc_test {
-    name: "libbpf_android_test",
-    srcs: [
-        "BpfMapTest.cpp",
-    ],
-    defaults: ["bpf_defaults"],
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wno-error=unused-variable",
-    ],
-    static_libs: ["libgmock"],
-    shared_libs: [
-        "libbpf_android",
-        "libbase",
-        "liblog",
-        "libutils",
-    ],
-    require_root: true,
-    test_suites: ["general-tests"],
-}
-
-cc_test {
     name: "libbpf_load_test",
     srcs: [
         "BpfLoadTest.cpp",
