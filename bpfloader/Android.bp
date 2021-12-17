@@ -46,7 +46,7 @@ cc_binary {
         "libbase",
         "liblog",
         "libnetdutils",
-        "libbpf",
+        "libbpf_bcc",
     ],
     srcs: [
         "BpfLoader.cpp",
