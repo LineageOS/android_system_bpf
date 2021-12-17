@@ -58,7 +58,7 @@ cc_library {
         "libbase",
         "libutils",
         "liblog",
-        "libbpf",
+        "libbpf_bcc",
     ],
     header_libs: [
         "bpf_map_utils",
@@ -68,7 +68,7 @@ cc_library {
         "libbpf_android_headers",
         "bpf_map_utils",
     ],
-    export_shared_lib_headers: ["libbpf"],
+    export_shared_lib_headers: ["libbpf_bcc"],
     local_include_dirs: ["include"],
 
     defaults: ["bpf_defaults"],
@@ -94,7 +94,7 @@ cc_test {
     static_libs: ["libgmock"],
     shared_libs: [
         "libbpf_android",
-        "libbpf",
+        "libbpf_bcc",
         "libbase",
         "liblog",
         "libutils",
