@@ -34,6 +34,24 @@
       "parentUuid": "7f936d72_938d0ed7",
       "revId": "59eb7c213d2f38564344255b36b3efff67457e83",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "0d3a849b_6fc1ea81",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 25485
+      },
+      "writtenOn": "2021-12-22T09:14:48Z",
+      "side": 1,
+      "message": "btw this patch should be merged for 3.4 devices like neo and for 3.18 maintainers have to decide for themselves to backport bpf and cgroupv2 or use prop to bypass but I\u0027m agree with use backport on 3.18",
+      "parentUuid": "b3675701_20d485f8",
+      "revId": "59eb7c213d2f38564344255b36b3efff67457e83",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
