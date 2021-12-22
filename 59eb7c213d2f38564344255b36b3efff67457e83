@@ -69,6 +69,23 @@
       "message": "the commit message does not at all describe what the code does",
       "revId": "59eb7c213d2f38564344255b36b3efff67457e83",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "fae15675_2fad7c29",
+        "filename": "bpfloader/BpfLoader.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 115,
+      "author": {
+        "id": 5911
+      },
+      "writtenOn": "2021-12-22T14:56:38Z",
+      "side": 1,
+      "message": "excess line break",
+      "revId": "59eb7c213d2f38564344255b36b3efff67457e83",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
