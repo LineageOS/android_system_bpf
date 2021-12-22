@@ -16,6 +16,24 @@
       "message": "Tested on gemini with 3.18 kernel",
       "revId": "59eb7c213d2f38564344255b36b3efff67457e83",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "b3675701_20d485f8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 24387
+      },
+      "writtenOn": "2021-12-22T08:50:20Z",
+      "side": 1,
+      "message": "For 3.18 I\u0027m not sure wheter is better to do an attempt of backporting bpf and cgroupv2 or go with this",
+      "parentUuid": "7f936d72_938d0ed7",
+      "revId": "59eb7c213d2f38564344255b36b3efff67457e83",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
