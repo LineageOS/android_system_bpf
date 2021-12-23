@@ -39,7 +39,7 @@ cc_binary {
         memtag_heap: true,
     },
     clang: true,
-    header_libs: ["bpf_map_utils"],
+    header_libs: ["bpf_headers"],
     shared_libs: [
         "libcutils",
         "libbpf_android",
