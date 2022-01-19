@@ -55,10 +55,15 @@ struct {
     const char* const dir;
     const char* const prefix;
 } locations[] = {
-        // Tethering mainline module
+        // Tethering mainline module: tether offload
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/",
                 .prefix = "tethering/",
+        },
+        // Tethering mainline module: netd, clatd, ...etc
+        {
+                .dir = "/apex/com.android.tethering/etc/bpf/net_shared/",
+                .prefix = "",
         },
         // Core operating system
         {
