@@ -28,9 +28,9 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.8
+// This is BpfLoader v0.9
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 8u
+#define BPFLOADER_VERSION_MINOR 9u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
