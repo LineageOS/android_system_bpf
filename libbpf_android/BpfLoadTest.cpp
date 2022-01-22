@@ -99,7 +99,8 @@ class BpfLoadTest : public TestWithParam<std::string> {
 };
 
 INSTANTIATE_TEST_SUITE_P(BpfLoadTests, BpfLoadTest,
-                         ::testing::Values("/system/etc/bpf/bpf_load_tp_prog.o"));
+                         ::testing::Values("/system/etc/bpf/bpf_load_tp_prog.o",
+                                           "/system/etc/bpf/bpf_load_tp_prog_btf.o"));
 
 TEST_P(BpfLoadTest, bpfCheckMap) {
     checkMapNonZero();
