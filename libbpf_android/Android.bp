@@ -59,6 +59,7 @@ cc_library {
         "libutils",
         "liblog",
         "libbpf_bcc",
+        "libbpf_minimal",
     ],
     header_libs: [
         "bpf_headers",
@@ -95,6 +96,7 @@ cc_test {
     shared_libs: [
         "libbpf_android",
         "libbpf_bcc",
+        "libbpf_minimal",
         "libbase",
         "liblog",
         "libutils",
