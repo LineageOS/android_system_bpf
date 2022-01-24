@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android-base/file.h>
 #include <android-base/macros.h>
 #include <gtest/gtest.h>
 #include <stdlib.h>
@@ -23,29 +24,32 @@
 #include "bpf/BpfUtils.h"
 #include "include/libbpf_android.h"
 
-using ::testing::Test;
-
-constexpr const char tp_prog_path[] =
-        "/sys/fs/bpf/prog_bpf_load_tp_prog_tracepoint_sched_sched_switch";
-constexpr const char tp_map_path[] = "/sys/fs/bpf/map_bpf_load_tp_prog_cpu_pid_map";
+using ::testing::TestWithParam;;
 
 namespace android {
 namespace bpf {
 
-class BpfLoadTest : public testing::Test {
+class BpfLoadTest : public TestWithParam<std::string> {
   protected:
     BpfLoadTest() {}
     int mProgFd;
+    std::string mTpProgPath;
+    std::string mTpMapPath;;
 
     void SetUp() {
-        unlink(tp_prog_path);
-        unlink(tp_map_path);
+        auto progName = android::base::Basename(GetParam());
+        progName = progName.substr(0, progName.find_last_of('.'));
+        mTpProgPath = "/sys/fs/bpf/prog_" + progName + "_tracepoint_sched_sched_switch";
+        unlink(mTpProgPath.c_str());
+
+        mTpMapPath = "/sys/fs/bpf/map_" + progName + "_cpu_pid_map";
+        unlink(mTpMapPath.c_str());
 
         bool critical = true;
-        EXPECT_EQ(android::bpf::loadProg("/system/etc/bpf/bpf_load_tp_prog.o", &critical), 0);
+        EXPECT_EQ(android::bpf::loadProg(GetParam().c_str(), &critical), 0);
         EXPECT_EQ(false, critical);
 
-        mProgFd = bpf_obj_get(tp_prog_path);
+        mProgFd = bpf_obj_get(mTpProgPath.c_str());
         EXPECT_GT(mProgFd, 0);
 
         int ret = bpf_attach_tracepoint(mProgFd, "sched", "sched_switch");
@@ -54,14 +58,14 @@ class BpfLoadTest : public testing::Test {
 
     void TearDown() {
         close(mProgFd);
-        unlink(tp_prog_path);
-        unlink(tp_map_path);
+        unlink(mTpProgPath.c_str());
+        unlink(mTpMapPath.c_str());
     }
 
     void checkMapNonZero() {
         // The test program installs a tracepoint on sched:sched_switch
         // and expects the kernel to populate a PID corresponding to CPU
-        android::bpf::BpfMap<uint32_t, uint32_t> m(tp_map_path);
+        android::bpf::BpfMap<uint32_t, uint32_t> m(mTpMapPath.c_str());
 
         // Wait for program to run a little
         sleep(1);
@@ -83,7 +87,10 @@ class BpfLoadTest : public testing::Test {
     }
 };
 
-TEST_F(BpfLoadTest, bpfCheckMap) {
+INSTANTIATE_TEST_SUITE_P(BpfLoadTests, BpfLoadTest,
+                         ::testing::Values("/system/etc/bpf/bpf_load_tp_prog.o"));
+
+TEST_P(BpfLoadTest, bpfCheckMap) {
     checkMapNonZero();
 }
 
