@@ -55,6 +55,7 @@ cc_binary {
     init_rc: ["bpfloader.rc"],
 
     required: [
+        "btfloader",
         "time_in_state.o"
     ],
 

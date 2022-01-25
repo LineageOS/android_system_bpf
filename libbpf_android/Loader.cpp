@@ -24,8 +24,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sysexits.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 // This is BpfLoader v0.9
@@ -37,13 +39,18 @@
 #include "bpf/bpf_map_def.h"
 #include "include/libbpf_android.h"
 
+#include <bpf/bpf.h>
+
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
+#include <android-base/cmsg.h>
+#include <android-base/file.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 
@@ -472,12 +479,88 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
     return getSymName(elfFile, symtab[index].st_name, name);
 }
 
+static bool waitpidTimeout(pid_t pid, int timeoutMs) {
+    // Add SIGCHLD to the signal set.
+    sigset_t child_mask, original_mask;
+    sigemptyset(&child_mask);
+    sigaddset(&child_mask, SIGCHLD);
+    if (sigprocmask(SIG_BLOCK, &child_mask, &original_mask) == -1) return false;
+
+    // Wait for a SIGCHLD notification.
+    errno = 0;
+    timespec ts = {0, timeoutMs * 1000000};
+    int wait_result = TEMP_FAILURE_RETRY(sigtimedwait(&child_mask, nullptr, &ts));
+
+    // Restore the original signal set.
+    sigprocmask(SIG_SETMASK, &original_mask, nullptr);
+
+    if (wait_result == -1) return false;
+
+    int status;
+    return TEMP_FAILURE_RETRY(waitpid(pid, &status, WNOHANG)) == pid;
+}
+
+static std::optional<unique_fd> getMapBtfInfo(const char* elfPath,
+                         std::unordered_map<string, std::pair<uint32_t, uint32_t>> &btfTypeIds) {
+    unique_fd bpfloaderSocket, btfloaderSocket;
+    if (!android::base::Socketpair(AF_UNIX, SOCK_DGRAM | SOCK_NONBLOCK, 0, &bpfloaderSocket,
+                                   &btfloaderSocket)) {
+        return {};
+    }
+
+    unique_fd pipeRead, pipeWrite;
+    if (!android::base::Pipe(&pipeRead, &pipeWrite, O_NONBLOCK)) {
+        return {};
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) return {};
+    if (!pid) {
+        bpfloaderSocket.reset();
+        pipeRead.reset();
+        auto socketFdStr = std::to_string(btfloaderSocket.release());
+        auto pipeFdStr = std::to_string(pipeWrite.release());
+
+        if (execl("/system/bin/btfloader", "/system/bin/btfloader", socketFdStr.c_str(),
+                  pipeFdStr.c_str(), elfPath, NULL) == -1) {
+            ALOGW("exec btfloader failed with errno %d (%s)\n", errno, strerror(errno));
+            exit(EX_UNAVAILABLE);
+        }
+    }
+    btfloaderSocket.reset();
+    pipeWrite.reset();
+    if (!waitpidTimeout(pid, 100)) {
+        kill(pid, SIGKILL);
+        return {};
+    }
+
+    unique_fd btfFd;
+    if (android::base::ReceiveFileDescriptors(bpfloaderSocket, nullptr, 0, &btfFd)) return {};
+
+    std::string btfTypeIdStr;
+    if (!android::base::ReadFdToString(pipeRead, &btfTypeIdStr)) return {};
+    if (btfFd.get() < 0) return {};
+
+    const auto mapTypeIdLines = android::base::Split(btfTypeIdStr, "\n");
+    for (const auto &line : mapTypeIdLines) {
+        const auto vec = android::base::Split(line, " ");
+        // Splitting on newline will give us one empty line
+        if (vec.size() != 3) continue;
+        const int kTid = atoi(vec[1].c_str());
+        const int vTid = atoi(vec[2].c_str());
+        if (!kTid || !vTid) return {};
+        btfTypeIds[vec[0]] = std::make_pair(kTid, vTid);
+    }
+    return btfFd;
+}
+
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
                       const char* prefix, size_t sizeOfBpfMapDef) {
     int ret;
-    vector<char> mdData;
+    vector<char> mdData, btfData;
     vector<struct bpf_map_def> md;
     vector<string> mapNames;
+    std::unordered_map<string, std::pair<uint32_t, uint32_t>> btfTypeIdMap;
     string fname = pathToFilename(string(elfPath), true);
 
     ret = readSectionByName("maps", elfFile, mdData);
@@ -509,6 +592,11 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
 
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
+
+    std::optional<unique_fd> btfFd;
+    if (!readSectionByName(".BTF", elfFile, btfData)) {
+        btfFd = getMapBtfInfo(elfPath, btfTypeIdMap);
+    }
 
     unsigned kvers = kernelVersion();
 
@@ -575,8 +663,20 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                 // programs as being 5.4+...
                 type = BPF_MAP_TYPE_HASH;
             }
-            fd.reset(bcc_create_map(type, mapNames[i].c_str(), md[i].key_size, md[i].value_size,
-                                    md[i].max_entries, md[i].map_flags));
+            struct bpf_create_map_attr attr = {
+                .name = mapNames[i].c_str(),
+                .map_type = type,
+                .map_flags = md[i].map_flags,
+                .key_size = md[i].key_size,
+                .value_size = md[i].value_size,
+                .max_entries = md[i].max_entries,
+            };
+            if (btfFd.has_value() && btfTypeIdMap.find(mapNames[i]) != btfTypeIdMap.end()) {
+                attr.btf_fd = btfFd->get();
+                attr.btf_key_type_id = btfTypeIdMap.at(mapNames[i]).first;
+                attr.btf_value_type_id = btfTypeIdMap.at(mapNames[i]).second;
+            }
+            fd.reset(bcc_create_map_xattr(&attr, true));
             saved_errno = errno;
             ALOGD("bpf_create_map name %s, ret: %d\n", mapNames[i].c_str(), fd.get());
         }
