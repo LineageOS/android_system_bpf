@@ -575,7 +575,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                 // programs as being 5.4+...
                 type = BPF_MAP_TYPE_HASH;
             }
-            fd.reset(bpf_create_map(type, mapNames[i].c_str(), md[i].key_size, md[i].value_size,
+            fd.reset(bcc_create_map(type, mapNames[i].c_str(), md[i].key_size, md[i].value_size,
                                     md[i].max_entries, md[i].map_flags));
             saved_errno = errno;
             ALOGD("bpf_create_map name %s, ret: %d\n", mapNames[i].c_str(), fd.get());
@@ -724,7 +724,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         } else {
             vector<char> log_buf(BPF_LOAD_LOG_SZ, 0);
 
-            fd = bpf_prog_load(cs[i].type, name.c_str(), (struct bpf_insn*)cs[i].data.data(),
+            fd = bcc_prog_load(cs[i].type, name.c_str(), (struct bpf_insn*)cs[i].data.data(),
                                cs[i].data.size(), license.c_str(), kvers, 0, log_buf.data(),
                                log_buf.size());
             ALOGD("bpf_prog_load lib call for %s (%s) returned fd: %d (%s)\n", elfPath,
