@@ -356,7 +356,8 @@ static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd,
     return 0;
 }
 
-static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vector<string>& names) {
+static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vector<string>& names,
+                              optional<unsigned> symbolType = std::nullopt) {
     int ret;
     string name;
     vector<Elf64_Sym> symtab;
@@ -387,6 +388,8 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
     }
 
     for (int i = 0; i < (int)symtab.size(); i++) {
+        if (symbolType.has_value() && ELF_ST_TYPE(symtab[i].st_info) != symbolType) continue;
+
         if (symtab[i].st_shndx == sec_idx) {
             string s;
             ret = getSymName(elfFile, symtab[i].st_name, s);
@@ -437,7 +440,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs, size_t s
             ALOGD("Loaded code section %d (%s)\n", i, name.c_str());
 
             vector<string> csSymNames;
-            ret = getSectionSymNames(elfFile, oldName, csSymNames);
+            ret = getSectionSymNames(elfFile, oldName, csSymNames, STT_FUNC);
             if (ret || !csSymNames.size()) return ret;
             for (size_t i = 0; i < progDefNames.size(); ++i) {
                 if (!progDefNames[i].compare(csSymNames[0] + "_def")) {
