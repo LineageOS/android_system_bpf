@@ -34,6 +34,7 @@ class BpfLoadTest : public TestWithParam<std::string> {
     BpfLoadTest() {}
     int mProgFd;
     std::string mTpProgPath;
+    std::string mTpNeverLoadProgPath;
     std::string mTpMapPath;;
 
     void SetUp() {
@@ -41,6 +42,9 @@ class BpfLoadTest : public TestWithParam<std::string> {
         progName = progName.substr(0, progName.find_last_of('.'));
         mTpProgPath = "/sys/fs/bpf/prog_" + progName + "_tracepoint_sched_sched_switch";
         unlink(mTpProgPath.c_str());
+
+        mTpNeverLoadProgPath = "/sys/fs/bpf/prog_" + progName + "_tracepoint_sched_sched_wakeup";
+        unlink(mTpNeverLoadProgPath.c_str());
 
         mTpMapPath = "/sys/fs/bpf/map_" + progName + "_cpu_pid_map";
         unlink(mTpMapPath.c_str());
@@ -96,10 +100,16 @@ class BpfLoadTest : public TestWithParam<std::string> {
         EXPECT_EQ(android::base::ReadFileToString(mTpMapPath, &str), haveBtf);
         if (haveBtf) EXPECT_FALSE(str.empty());
     }
+
+    void checkKernelVersionEnforced() {
+        EXPECT_EQ(bpf_obj_get(mTpNeverLoadProgPath.c_str()), -1);
+        EXPECT_EQ(errno, ENOENT);
+    }
 };
 
 INSTANTIATE_TEST_SUITE_P(BpfLoadTests, BpfLoadTest,
-                         ::testing::Values("/system/etc/bpf/bpf_load_tp_prog.o"));
+                         ::testing::Values("/system/etc/bpf/bpf_load_tp_prog.o",
+                                           "/system/etc/bpf/bpf_load_tp_prog_btf.o"));
 
 TEST_P(BpfLoadTest, bpfCheckMap) {
     checkMapNonZero();
@@ -107,6 +117,10 @@ TEST_P(BpfLoadTest, bpfCheckMap) {
 
 TEST_P(BpfLoadTest, bpfCheckBtf) {
     checkMapBtf();
+}
+
+TEST_P(BpfLoadTest, bpfCheckMinKernelVersionEnforced) {
+    checkKernelVersionEnforced();
 }
 
 }  // namespace bpf
