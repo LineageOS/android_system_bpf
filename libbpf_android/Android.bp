@@ -82,6 +82,7 @@ cc_library {
 
 cc_test {
     name: "libbpf_load_test",
+    test_suites: ["general-tests"],
     header_libs: ["bpf_headers"],
     srcs: [
         "BpfLoadTest.cpp",
