@@ -24,7 +24,7 @@
 #include "bpf/BpfUtils.h"
 #include "include/libbpf_android.h"
 
-using ::testing::TestWithParam;;
+using ::testing::TestWithParam;
 
 namespace android {
 namespace bpf {
@@ -38,19 +38,18 @@ class BpfLoadTest : public TestWithParam<std::string> {
     std::string mTpMapPath;;
 
     void SetUp() {
-        auto progName = android::base::Basename(GetParam());
-        progName = progName.substr(0, progName.find_last_of('.'));
-        mTpProgPath = "/sys/fs/bpf/prog_" + progName + "_tracepoint_sched_sched_switch";
+        mTpProgPath = "/sys/fs/bpf/prog_" + GetParam() + "_tracepoint_sched_sched_switch";
         unlink(mTpProgPath.c_str());
 
-        mTpNeverLoadProgPath = "/sys/fs/bpf/prog_" + progName + "_tracepoint_sched_sched_wakeup";
+        mTpNeverLoadProgPath = "/sys/fs/bpf/prog_" + GetParam() + "_tracepoint_sched_sched_wakeup";
         unlink(mTpNeverLoadProgPath.c_str());
 
-        mTpMapPath = "/sys/fs/bpf/map_" + progName + "_cpu_pid_map";
+        mTpMapPath = "/sys/fs/bpf/map_" + GetParam() + "_cpu_pid_map";
         unlink(mTpMapPath.c_str());
 
+        auto progPath = android::base::GetExecutableDirectory() + "/" + GetParam() + ".o";
         bool critical = true;
-        EXPECT_EQ(android::bpf::loadProg(GetParam().c_str(), &critical), 0);
+        EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical), 0);
         EXPECT_EQ(false, critical);
 
         mProgFd = bpf_obj_get(mTpProgPath.c_str());
@@ -108,8 +107,8 @@ class BpfLoadTest : public TestWithParam<std::string> {
 };
 
 INSTANTIATE_TEST_SUITE_P(BpfLoadTests, BpfLoadTest,
-                         ::testing::Values("/system/etc/bpf/bpf_load_tp_prog.o",
-                                           "/system/etc/bpf/bpf_load_tp_prog_btf.o"));
+                         ::testing::Values("bpf_load_tp_prog",
+                                           "bpf_load_tp_prog_btf"));
 
 TEST_P(BpfLoadTest, bpfCheckMap) {
     checkMapNonZero();
