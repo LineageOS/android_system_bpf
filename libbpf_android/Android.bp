@@ -82,6 +82,7 @@ cc_library {
 
 cc_test {
     name: "libbpf_load_test",
+    test_suites: ["general-tests"],
     header_libs: ["bpf_headers"],
     srcs: [
         "BpfLoadTest.cpp",
@@ -102,9 +103,9 @@ cc_test {
         "libutils",
     ],
 
-    required: [
-        "bpf_load_tp_prog.o",
-        "bpf_load_tp_prog_btf.o",
+    data: [
+        ":bpf_load_tp_prog.o",
+        ":bpf_load_tp_prog_btf.o",
     ],
     require_root: true,
 }
