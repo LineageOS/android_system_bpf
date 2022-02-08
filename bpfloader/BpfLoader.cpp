@@ -38,6 +38,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
@@ -116,7 +117,10 @@ void createSysFsBpfSubDir(const char* const prefix) {
     }
 }
 
-int main() {
+int main(int argc, char** argv) {
+    (void)argc;
+    android::base::InitLogging(argv, &android::base::KernelLogger);
+
     // Load all ELF objects, create programs and maps, and pin them
     for (const auto location : locations) {
         createSysFsBpfSubDir(location.prefix);
