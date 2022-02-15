@@ -24,7 +24,8 @@ namespace android {
 namespace bpf {
 
 // BPF loader implementation. Loads an eBPF ELF object
-int loadProg(const char* elfPath, bool* isCritical, const char* prefix = "");
+int loadProg(const char* elfPath, bool* isCritical, const char* prefix = "",
+             const bpf_prog_type* allowed = nullptr, size_t numAllowed = 0);
 
 // Exposed for testing
 unsigned int readSectionUint(const char* name, std::ifstream& elfFile, unsigned int defVal);
