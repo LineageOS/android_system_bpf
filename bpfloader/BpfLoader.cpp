@@ -58,7 +58,7 @@ using std::string;
 // attachment of programs to shared resources (or to detect when a shared resource
 // has one BPF program replace another that is attached there)
 constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
-        BPF_PROG_TYPE_TRACEPOINT,
+        BPF_PROG_TYPE_SOCKET_FILTER,
 };
 
 struct Location {
