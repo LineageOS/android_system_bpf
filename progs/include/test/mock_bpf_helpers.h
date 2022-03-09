@@ -22,6 +22,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <cutils/android_filesystem_config.h>
+
 typedef void* mock_bpf_map_t;
 
 /* type safe macro to declare a map and related accessor functions */
