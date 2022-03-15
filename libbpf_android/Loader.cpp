@@ -32,7 +32,7 @@
 
 // This is BpfLoader v0.10
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 10u
+#define BPFLOADER_VERSION_MINOR 11u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -881,13 +881,13 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (!reuse) {
             ret = bpf_obj_pin(fd, progPinLoc.c_str());
             if (ret) return -errno;
+            if (chmod(progPinLoc.c_str(), 0440)) return -errno;
             if (cs[i].prog_def.has_value()) {
                 if (chown(progPinLoc.c_str(), (uid_t)cs[i].prog_def->uid,
                           (gid_t)cs[i].prog_def->gid)) {
                     return -errno;
                 }
             }
-            if (chmod(progPinLoc.c_str(), 0440)) return -errno;
         }
 
         cs[i].prog_fd.reset(fd);
