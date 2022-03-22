@@ -3,5 +3,10 @@
     {
       "name": "libbpf_load_test"
     }
+  ],
+  "hwasan-postsubmit": [
+    {
+      "name": "libbpf_load_test"
+    }
   ]
 }
