@@ -77,7 +77,7 @@ const Location locations[] = {
         // Tethering mainline module: netd, clatd, ...etc
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/net_shared/",
-                .prefix = "",
+                .prefix = "net_shared/",
         },
         // Core operating system
         {
