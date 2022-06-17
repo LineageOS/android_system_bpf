@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.15
+// This is BpfLoader v0.16
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 15u
+#define BPFLOADER_VERSION_MINOR 16u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
