@@ -230,10 +230,10 @@ unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int d
     vector<char> theBytes;
     int ret = readSectionByName(name, elfFile, theBytes);
     if (ret) {
-        ALOGD("Couldn't find section %s (defaulting to %u [0x%x]).\n", name, defVal, defVal);
+        ALOGD("Couldn't find section %s (defaulting to %u [0x%x]).", name, defVal, defVal);
         return defVal;
     } else if (theBytes.size() < sizeof(unsigned int)) {
-        ALOGE("Section %s too short (defaulting to %u [0x%x]).\n", name, defVal, defVal);
+        ALOGE("Section %s too short (defaulting to %u [0x%x]).", name, defVal, defVal);
         return defVal;
     } else {
         // decode first 4 bytes as LE32 uint, there will likely be more bytes due to alignment.
@@ -244,7 +244,7 @@ unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int d
         value += static_cast<unsigned char>(theBytes[1]);
         value <<= 8;
         value += static_cast<unsigned char>(theBytes[0]);
-        ALOGI("Section %s value is %u [0x%x]\n", name, value, value);
+        ALOGI("Section %s value is %u [0x%x]", name, value, value);
         return value;
     }
 }
@@ -332,7 +332,7 @@ static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd,
     if (ret) return ret;
 
     if (pdData.size() % sizeOfBpfProgDef) {
-        ALOGE("readProgDefs failed due to improper sized progs section, %zu %% %zu != 0\n",
+        ALOGE("readProgDefs failed due to improper sized progs section, %zu %% %zu != 0",
               pdData.size(), sizeOfBpfProgDef);
         return -1;
     };
@@ -382,7 +382,7 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
 
     /* No section found with matching name*/
     if (sec_idx == -1) {
-        ALOGW("No %s section could be found in elf object\n", sectionName.c_str());
+        ALOGW("No %s section could be found in elf object", sectionName.c_str());
         return -1;
     }
 
@@ -457,7 +457,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs, size_t s
 
         ret = readSectionByIdx(elfFile, i, cs_temp.data);
         if (ret) return ret;
-        ALOGD("Loaded code section %d (%s)\n", i, name.c_str());
+        ALOGD("Loaded code section %d (%s)", i, name.c_str());
 
         vector<string> csSymNames;
         ret = getSectionSymNames(elfFile, oldName, csSymNames, STT_FUNC);
@@ -477,13 +477,13 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs, size_t s
             if (name == (".rel" + oldName)) {
                 ret = readSectionByIdx(elfFile, i + 1, cs_temp.rel_data);
                 if (ret) return ret;
-                ALOGD("Loaded relo section %d (%s)\n", i, name.c_str());
+                ALOGD("Loaded relo section %d (%s)", i, name.c_str());
             }
         }
 
         if (cs_temp.data.size() > 0) {
             cs.push_back(std::move(cs_temp));
-            ALOGD("Adding section %d to cs list\n", i);
+            ALOGD("Adding section %d to cs list", i);
         }
     }
     return 0;
@@ -545,7 +545,7 @@ static std::optional<unique_fd> getMapBtfInfo(const char* elfPath,
 
         if (execl("/system/bin/btfloader", "/system/bin/btfloader", socketFdStr.c_str(),
                   pipeFdStr.c_str(), elfPath, NULL) == -1) {
-            ALOGW("exec btfloader failed with errno %d (%s)\n", errno, strerror(errno));
+            ALOGW("exec btfloader failed with errno %d (%s)", errno, strerror(errno));
             exit(EX_UNAVAILABLE);
         }
     }
@@ -590,7 +590,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     if (ret) return ret;
 
     if (mdData.size() % sizeOfBpfMapDef) {
-        ALOGE("createMaps failed due to improper sized maps section, %zu %% %zu != 0\n",
+        ALOGE("createMaps failed due to improper sized maps section, %zu %% %zu != 0",
               mdData.size(), sizeOfBpfMapDef);
         return -1;
     };
@@ -624,28 +624,28 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (BPFLOADER_VERSION < md[i].bpfloader_min_ver) {
-            ALOGI("skipping map %s which requires bpfloader min ver 0x%05x\n", mapNames[i].c_str(),
+            ALOGI("skipping map %s which requires bpfloader min ver 0x%05x", mapNames[i].c_str(),
                   md[i].bpfloader_min_ver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (BPFLOADER_VERSION >= md[i].bpfloader_max_ver) {
-            ALOGI("skipping map %s which requires bpfloader max ver 0x%05x\n", mapNames[i].c_str(),
+            ALOGI("skipping map %s which requires bpfloader max ver 0x%05x", mapNames[i].c_str(),
                   md[i].bpfloader_max_ver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (kvers < md[i].min_kver) {
-            ALOGI("skipping map %s which requires kernel version 0x%x >= 0x%x\n",
+            ALOGI("skipping map %s which requires kernel version 0x%x >= 0x%x",
                   mapNames[i].c_str(), kvers, md[i].min_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (kvers >= md[i].max_kver) {
-            ALOGI("skipping map %s which requires kernel version 0x%x < 0x%x\n",
+            ALOGI("skipping map %s which requires kernel version 0x%x < 0x%x",
                   mapNames[i].c_str(), kvers, md[i].max_kver);
             mapFds.push_back(unique_fd());
             continue;
@@ -661,7 +661,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             fd.reset(bpf_obj_get(mapPinLoc.c_str()));
             saved_errno = errno;
-            ALOGD("bpf_create_map reusing map %s, ret: %d\n", mapNames[i].c_str(), fd.get());
+            ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
             reuse = true;
         } else {
             enum bpf_map_type type = md[i].type;
@@ -700,7 +700,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             }
             fd.reset(bcc_create_map_xattr(&attr, true));
             saved_errno = errno;
-            ALOGD("bpf_create_map name %s, ret: %d\n", mapNames[i].c_str(), fd.get());
+            ALOGD("bpf_create_map name %s, ret: %d", mapNames[i].c_str(), fd.get());
         }
 
         if (fd < 0) return -saved_errno;
@@ -718,9 +718,9 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         __u32 map_info_len = sizeof(map_info);
         int rv = bpf_obj_get_info_by_fd(fd, &map_info, &map_info_len);
         if (rv) {
-            ALOGE("bpf_obj_get_info_by_fd failed, ret: %d [%d]\n", rv, errno);
+            ALOGE("bpf_obj_get_info_by_fd failed, ret: %d [%d]", rv, errno);
         } else {
-            ALOGI("map %s id %d\n", mapPinLoc.c_str(), map_info.id);
+            ALOGI("map %s id %d", mapPinLoc.c_str(), map_info.id);
         }
 
         mapFds.push_back(std::move(fd));
@@ -743,9 +743,9 @@ static void dumpIns(char* ins, int size) {
 /* For debugging, dump all code sections from cs list */
 static void dumpAllCs(vector<codeSection>& cs) {
     for (int i = 0; i < (int)cs.size(); i++) {
-        ALOGE("Dumping cs %d, name %s\n", int(i), cs[i].name.c_str());
+        ALOGE("Dumping cs %d, name %s", int(i), cs[i].name.c_str());
         dumpIns((char*)cs[i].data.data(), cs[i].data.size());
-        ALOGE("-----------\n");
+        ALOGE("-----------");
     }
 }
 
@@ -764,8 +764,8 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
         (int)offset, (int)insnIndex, *(unsigned long*)insn);
 
     if (insn->code != (BPF_LD | BPF_IMM | BPF_DW)) {
-        ALOGE("Dumping all instructions till ins %d\n", insnIndex);
-        ALOGE("invalid relo for insn %d: code 0x%x\n", insnIndex, insn->code);
+        ALOGE("Dumping all instructions till ins %d", insnIndex);
+        ALOGE("invalid relo for insn %d: code 0x%x", insnIndex, insn->code);
         dumpIns((char*)insnsPtr, (insnIndex + 3) * 8);
         return;
     }
@@ -819,7 +819,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (cs[i].prog_def.has_value()) {
             unsigned min_kver = cs[i].prog_def->min_kver;
             unsigned max_kver = cs[i].prog_def->max_kver;
-            ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)\n", i, name.c_str(), min_kver,
+            ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)", i, name.c_str(), min_kver,
                   max_kver, kvers);
             if (kvers < min_kver) continue;
             if (kvers >= max_kver) continue;
@@ -828,7 +828,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
         }
 
-        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)\n", i, name.c_str(),
+        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)", i, name.c_str(),
               bpfMinVer, bpfMaxVer);
         if (BPFLOADER_VERSION < bpfMinVer) continue;
         if (BPFLOADER_VERSION >= bpfMaxVer) continue;
@@ -849,7 +849,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         progPinLoc += name;
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd = retrieveProgram(progPinLoc.c_str());
-            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)\n", progPinLoc.c_str(), fd,
+            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd,
                   (fd < 0 ? std::strerror(errno) : "no error"));
             reuse = true;
         } else {
@@ -867,7 +867,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             fd = bcc_prog_load_xattr(&attr, cs[i].data.size(), log_buf.data(), log_buf.size(),
                     true);
 
-            ALOGD("bpf_prog_load lib call for %s (%s) returned fd: %d (%s)\n", elfPath,
+            ALOGD("bpf_prog_load lib call for %s (%s) returned fd: %d (%s)", elfPath,
                   cs[i].name.c_str(), fd, (fd < 0 ? std::strerror(errno) : "no error"));
 
             if (fd < 0) {
@@ -904,9 +904,9 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         __u32 prog_info_len = sizeof(prog_info);
         int rv = bpf_obj_get_info_by_fd(fd, &prog_info, &prog_info_len);
         if (rv) {
-            ALOGE("bpf_obj_get_info_by_fd failed, ret: %d [%d]\n", rv, errno);
+            ALOGE("bpf_obj_get_info_by_fd failed, ret: %d [%d]", rv, errno);
         } else {
-            ALOGI("prog %s id %d\n", progPinLoc.c_str(), prog_info.id);
+            ALOGI("prog %s id %d", progPinLoc.c_str(), prog_info.id);
         }
 
         cs[i].prog_fd.reset(fd);
@@ -934,10 +934,10 @@ int loadProg(const char* elfPath, bool* isCritical, const char* prefix,
 
     ret = readSectionByName("license", elfFile, license);
     if (ret) {
-        ALOGE("Couldn't find license in %s\n", elfPath);
+        ALOGE("Couldn't find license in %s", elfPath);
         return ret;
     } else {
-        ALOGD("Loading %s%s ELF object %s with license %s\n",
+        ALOGD("Loading %s%s ELF object %s with license %s",
               *isCritical ? "critical for " : "optional", *isCritical ? (char*)critical.data() : "",
               elfPath, (char*)license.data());
     }
@@ -954,36 +954,36 @@ int loadProg(const char* elfPath, bool* isCritical, const char* prefix,
 
     // inclusive lower bound check
     if (BPFLOADER_VERSION < bpfLoaderMinVer) {
-        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with min ver 0x%05x\n",
+        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with min ver 0x%05x",
               BPFLOADER_VERSION, elfPath, bpfLoaderMinVer);
         return 0;
     }
 
     // exclusive upper bound check
     if (BPFLOADER_VERSION >= bpfLoaderMaxVer) {
-        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with max ver 0x%05x\n",
+        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with max ver 0x%05x",
               BPFLOADER_VERSION, elfPath, bpfLoaderMaxVer);
         return 0;
     }
 
-    ALOGI("BpfLoader version 0x%05x processing ELF object %s with ver [0x%05x,0x%05x)\n",
+    ALOGI("BpfLoader version 0x%05x processing ELF object %s with ver [0x%05x,0x%05x)",
           BPFLOADER_VERSION, elfPath, bpfLoaderMinVer, bpfLoaderMaxVer);
 
     if (sizeOfBpfMapDef < DEFAULT_SIZEOF_BPF_MAP_DEF) {
-        ALOGE("sizeof(bpf_map_def) of %zu is too small (< %d)\n", sizeOfBpfMapDef,
+        ALOGE("sizeof(bpf_map_def) of %zu is too small (< %d)", sizeOfBpfMapDef,
               DEFAULT_SIZEOF_BPF_MAP_DEF);
         return -1;
     }
 
     if (sizeOfBpfProgDef < DEFAULT_SIZEOF_BPF_PROG_DEF) {
-        ALOGE("sizeof(bpf_prog_def) of %zu is too small (< %d)\n", sizeOfBpfProgDef,
+        ALOGE("sizeof(bpf_prog_def) of %zu is too small (< %d)", sizeOfBpfProgDef,
               DEFAULT_SIZEOF_BPF_PROG_DEF);
         return -1;
     }
 
     ret = readCodeSections(elfFile, cs, sizeOfBpfProgDef, allowed, numAllowed);
     if (ret) {
-        ALOGE("Couldn't read all code sections in %s\n", elfPath);
+        ALOGE("Couldn't read all code sections in %s", elfPath);
         return ret;
     }
 
@@ -992,17 +992,17 @@ int loadProg(const char* elfPath, bool* isCritical, const char* prefix,
 
     ret = createMaps(elfPath, elfFile, mapFds, prefix, sizeOfBpfMapDef);
     if (ret) {
-        ALOGE("Failed to create maps: (ret=%d) in %s\n", ret, elfPath);
+        ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
     }
 
     for (int i = 0; i < (int)mapFds.size(); i++)
-        ALOGD("map_fd found at %d is %d in %s\n", i, mapFds[i].get(), elfPath);
+        ALOGD("map_fd found at %d is %d in %s", i, mapFds[i].get(), elfPath);
 
     applyMapRelo(elfFile, mapFds, cs);
 
     ret = loadCodeSections(elfPath, cs, string(license.data()), prefix);
-    if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d\n", ret);
+    if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);
 
     return ret;
 }
