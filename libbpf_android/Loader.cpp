@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.16
+// This is BpfLoader v0.17
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 16u
+#define BPFLOADER_VERSION_MINOR 17u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -561,7 +561,7 @@ static std::optional<unique_fd> getMapBtfInfo(const char* elfPath,
 
     std::string btfTypeIdStr;
     if (!android::base::ReadFdToString(pipeRead, &btfTypeIdStr)) return {};
-    if (btfFd.get() < 0) return {};
+    if (!btfFd.ok()) return {};
 
     const auto mapTypeIdLines = android::base::Split(btfTypeIdStr, "\n");
     for (const auto &line : mapTypeIdLines) {
@@ -574,6 +574,52 @@ static std::optional<unique_fd> getMapBtfInfo(const char* elfPath,
         btfTypeIds[vec[0]] = std::make_pair(kTid, vTid);
     }
     return btfFd;
+}
+
+static bool mapMatchesExpectations(unique_fd& fd, string& mapName, struct bpf_map_def& mapDef,
+                                   enum bpf_map_type type) {
+    // bpfGetFd... family of functions require at minimum a 4.14 kernel,
+    // so on 4.9 kernels just pretend the map matches our expectations.
+    // This isn't really a problem as we only really support 4.14+ anyway...
+    // Additionally we'll get almost equivalent test coverage on newer devices/kernels.
+    // This is because the primary failure mode we're trying to detect here
+    // is either a source code misconfiguration (which is likely kernel independent)
+    // or a newly introduced kernel feature/bug (which is unlikely to get backported to 4.9).
+    if (!isAtLeastKernelVersion(4, 14, 0)) return true;
+
+    // These asserts should *never* trigger, if one of them somehow does,
+    // it probably means a bpf .o file has been changed/replaced at runtime
+    // and bpfloader was manually rerun (normally it should only run *once*
+    // early during the boot process).
+    // Another possibility is that something is misconfigured in the code:
+    // most likely a shared map is declared twice differently.
+    // But such a change should never be checked into the source tree...
+    int fd_type = bpfGetFdMapType(fd);
+    int fd_key_size = bpfGetFdKeySize(fd);
+    int fd_value_size = bpfGetFdValueSize(fd);
+    int fd_max_entries = bpfGetFdMaxEntries(fd);
+    int fd_map_flags = bpfGetFdMapFlags(fd);
+
+    // DEVMAPs are readonly from the bpf program side's point of view, as such
+    // the kernel in kernel/bpf/devmap.c dev_map_init_map() will set the flag
+    int desired_map_flags = (int)mapDef.map_flags;
+    if (type == BPF_MAP_TYPE_DEVMAP || type == BPF_MAP_TYPE_DEVMAP_HASH)
+        desired_map_flags |= BPF_F_RDONLY_PROG;
+
+    // If anything doesn't match, just close the fd - it's of no use anyway.
+    if (fd_type != type) fd.reset();
+    if (fd_key_size != (int)mapDef.key_size) fd.reset();
+    if (fd_value_size != (int)mapDef.value_size) fd.reset();
+    if (fd_max_entries != (int)mapDef.max_entries) fd.reset();
+    if (fd_map_flags != desired_map_flags) fd.reset();
+
+    if (fd.ok()) return true;
+
+    ALOGE("bpf map name %s mismatch: desired/found: "
+          "type:%d/%d key:%u/%d value:%u/%d entries:%u/%d flags:%u/%d",
+          mapName.c_str(), type, fd_type, mapDef.key_size, fd_key_size, mapDef.value_size,
+          fd_value_size, mapDef.max_entries, fd_max_entries, desired_map_flags, fd_map_flags);
+    return false;
 }
 
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
@@ -651,6 +697,28 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             continue;
         }
 
+        enum bpf_map_type type = md[i].type;
+        if (type == BPF_MAP_TYPE_DEVMAP && !isAtLeastKernelVersion(4, 14, 0)) {
+            // On Linux Kernels older than 4.14 this map type doesn't exist, but it can kind
+            // of be approximated: ARRAY has the same userspace api, though it is not usable
+            // by the same ebpf programs.  However, that's okay because the bpf_redirect_map()
+            // helper doesn't exist on 4.9 anyway (so the bpf program would fail to load,
+            // and thus needs to be tagged as 4.14+ either way), so there's nothing useful you
+            // could do with a DEVMAP anyway (that isn't already provided by an ARRAY)...
+            // Hence using an ARRAY instead of a DEVMAP simply makes life easier for userspace.
+            type = BPF_MAP_TYPE_ARRAY;
+        }
+        if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
+            // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
+            // of be approximated: HASH has the same userspace visible api.
+            // However it cannot be used by ebpf programs in the same way.
+            // Since bpf_redirect_map() only requires 4.14, a program using a DEVMAP_HASH map
+            // would fail to load (due to trying to redirect to a HASH instead of DEVMAP_HASH).
+            // One must thus tag any BPF_MAP_TYPE_DEVMAP_HASH + bpf_redirect_map() using
+            // programs as being 5.4+...
+            type = BPF_MAP_TYPE_HASH;
+        }
+
         // Format of pin location is /sys/fs/bpf/<prefix>map_<filename>_<mapname>
         string mapPinLoc =
                 string(BPF_FS_PATH) + prefix + "map_" + fname + "_" + string(mapNames[i]);
@@ -664,27 +732,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
             reuse = true;
         } else {
-            enum bpf_map_type type = md[i].type;
-            if (type == BPF_MAP_TYPE_DEVMAP && !isAtLeastKernelVersion(4, 14, 0)) {
-                // On Linux Kernels older than 4.14 this map type doesn't exist, but it can kind
-                // of be approximated: ARRAY has the same userspace api, though it is not usable
-                // by the same ebpf programs.  However, that's okay because the bpf_redirect_map()
-                // helper doesn't exist on 4.9 anyway (so the bpf program would fail to load,
-                // and thus needs to be tagged as 4.14+ either way), so there's nothing useful you
-                // could do with a DEVMAP anyway (that isn't already provided by an ARRAY)...
-                // Hence using an ARRAY instead of a DEVMAP simply makes life easier for userspace.
-                type = BPF_MAP_TYPE_ARRAY;
-            }
-            if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
-                // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
-                // of be approximated: HASH has the same userspace visible api.
-                // However it cannot be used by ebpf programs in the same way.
-                // Since bpf_redirect_map() only requires 4.14, a program using a DEVMAP_HASH map
-                // would fail to load (due to trying to redirect to a HASH instead of DEVMAP_HASH).
-                // One must thus tag any BPF_MAP_TYPE_DEVMAP_HASH + bpf_redirect_map() using
-                // programs as being 5.4+...
-                type = BPF_MAP_TYPE_HASH;
-            }
             struct bpf_create_map_attr attr = {
                 .name = mapNames[i].c_str(),
                 .map_type = type,
@@ -703,7 +750,12 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             ALOGD("bpf_create_map name %s, ret: %d", mapNames[i].c_str(), fd.get());
         }
 
-        if (fd < 0) return -saved_errno;
+        if (!fd.ok()) return -saved_errno;
+
+        // When reusing a pinned map, we need to check the map type/sizes/etc match, but for
+        // safety (since reuse code path is rare) run these checks even if we just created it.
+        // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
+        if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
 
         if (!reuse) {
             ret = bpf_obj_pin(fd, mapPinLoc.c_str());
