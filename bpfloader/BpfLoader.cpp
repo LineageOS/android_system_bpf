@@ -69,22 +69,29 @@ struct Location {
 };
 
 const Location locations[] = {
-        // Tethering mainline module: tether offload
+        // S+ Tethering mainline module (network_stack): tether offload
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/",
                 .prefix = "tethering/",
         },
-        // Tethering mainline module (shared with netd & system server)
+        // T+ Tethering mainline module (shared with netd & system server)
+        // netutils_wrapper (for iptables xt_bpf) has access to programs
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/netd_shared/",
                 .prefix = "netd_shared/",
         },
-        // Tethering mainline module (shared with system server)
+        // T+ Tethering mainline module (shared with netd & system server)
+        // netutils_wrapper has no access, netd has read only access
+        {
+                .dir = "/apex/com.android.tethering/etc/bpf/netd_readonly/",
+                .prefix = "netd_readonly/",
+        },
+        // T+ Tethering mainline module (shared with system server)
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/net_shared/",
                 .prefix = "net_shared/",
         },
-        // Tethering mainline module (not shared)
+        // T+ Tethering mainline module (not shared, just network_stack)
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/net_private/",
                 .prefix = "net_private/",
