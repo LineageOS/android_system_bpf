@@ -638,8 +638,8 @@ static std::optional<unique_fd> getMapBtfInfo(const char* elfPath,
     return btfFd;
 }
 
-static bool mapMatchesExpectations(unique_fd& fd, string& mapName, struct bpf_map_def& mapDef,
-                                   enum bpf_map_type type) {
+static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
+                                   const struct bpf_map_def& mapDef, const enum bpf_map_type type) {
     // bpfGetFd... family of functions require at minimum a 4.14 kernel,
     // so on 4.9 kernels just pretend the map matches our expectations.
     // This isn't really a problem as we only really support 4.14+ anyway...
@@ -649,13 +649,10 @@ static bool mapMatchesExpectations(unique_fd& fd, string& mapName, struct bpf_ma
     // or a newly introduced kernel feature/bug (which is unlikely to get backported to 4.9).
     if (!isAtLeastKernelVersion(4, 14, 0)) return true;
 
-    // These asserts should *never* trigger, if one of them somehow does,
-    // it probably means a bpf .o file has been changed/replaced at runtime
-    // and bpfloader was manually rerun (normally it should only run *once*
-    // early during the boot process).
-    // Another possibility is that something is misconfigured in the code:
-    // most likely a shared map is declared twice differently.
-    // But such a change should never be checked into the source tree...
+    // Assuming fd is a valid Bpf Map file descriptor then
+    // all the following should always succeed on a 4.14+ kernel.
+    // If they somehow do fail, they'll return -1 (and set errno),
+    // which should then cause (among others) a key_size mismatch.
     int fd_type = bpfGetFdMapType(fd);
     int fd_key_size = bpfGetFdKeySize(fd);
     int fd_value_size = bpfGetFdValueSize(fd);
@@ -668,14 +665,20 @@ static bool mapMatchesExpectations(unique_fd& fd, string& mapName, struct bpf_ma
     if (type == BPF_MAP_TYPE_DEVMAP || type == BPF_MAP_TYPE_DEVMAP_HASH)
         desired_map_flags |= BPF_F_RDONLY_PROG;
 
-    // If anything doesn't match, just close the fd - it's of no use anyway.
-    if (fd_type != type) fd.reset();
-    if (fd_key_size != (int)mapDef.key_size) fd.reset();
-    if (fd_value_size != (int)mapDef.value_size) fd.reset();
-    if (fd_max_entries != (int)mapDef.max_entries) fd.reset();
-    if (fd_map_flags != desired_map_flags) fd.reset();
-
-    if (fd.ok()) return true;
+    // The following checks should *never* trigger, if one of them somehow does,
+    // it probably means a bpf .o file has been changed/replaced at runtime
+    // and bpfloader was manually rerun (normally it should only run *once*
+    // early during the boot process).
+    // Another possibility is that something is misconfigured in the code:
+    // most likely a shared map is declared twice differently.
+    // But such a change should never be checked into the source tree...
+    if ((fd_type == type) &&
+        (fd_key_size == (int)mapDef.key_size) &&
+        (fd_value_size == (int)mapDef.value_size) &&
+        (fd_max_entries == (int)mapDef.max_entries) &&
+        (fd_map_flags == desired_map_flags)) {
+        return true;
+    }
 
     ALOGE("bpf map name %s mismatch: desired/found: "
           "type:%d/%d key:%u/%d value:%u/%d entries:%u/%d flags:%u/%d",
