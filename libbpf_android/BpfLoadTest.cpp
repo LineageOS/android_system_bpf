@@ -53,7 +53,7 @@ class BpfLoadTest : public TestWithParam<std::string> {
         bpf_prog_type kAllowed[] = {
                 BPF_PROG_TYPE_UNSPEC,
         };
-        EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical, "", kAllowed,
+        EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical, "", 0, kAllowed,
                                          arraysize(kAllowed)),
                   -1);
 
