@@ -792,6 +792,8 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             ALOGI("map %s selinux_context [%32s] -> %d -> '%s' (%s)", mapNames[i].c_str(),
                   md[i].selinux_context, selinux_context, lookupSelinuxContext(selinux_context),
                   lookupPinSubdir(selinux_context));
+            // temp disable until selinux grants bpfloader 'rename' priv
+            selinux_context = domain::unspecified;
         }
 
         domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
@@ -1018,6 +1020,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             ALOGI("prog %s selinux_context [%32s] -> %d -> '%s' (%s)", name.c_str(),
                   cs[i].prog_def->selinux_context, selinux_context,
                   lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
+            // temp disable until selinux grants bpfloader 'rename' priv
+            selinux_context = domain::unspecified;
         }
 
         if (specified(pin_subdir)) {
