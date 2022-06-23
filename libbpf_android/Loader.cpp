@@ -727,12 +727,15 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
 
+    unsigned btfMinBpfLoaderVer = readSectionUint("btf_min_bpfloader_ver", elfFile, 0);
+    unsigned btfMinKernelVer = readSectionUint("btf_min_kernel_ver", elfFile, 0);
+    unsigned kvers = kernelVersion();
+
     std::optional<unique_fd> btfFd;
-    if (!readSectionByName(".BTF", elfFile, btfData)) {
+    if ((BPFLOADER_VERSION >= btfMinBpfLoaderVer) && (kvers >= btfMinKernelVer) &&
+        (!readSectionByName(".BTF", elfFile, btfData))) {
         btfFd = getMapBtfInfo(elfPath, btfTypeIdMap);
     }
-
-    unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (BPFLOADER_VERSION < md[i].bpfloader_min_ver) {
