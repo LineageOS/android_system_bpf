@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.20
+// This is BpfLoader v0.21
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 20u
+#define BPFLOADER_VERSION_MINOR 21u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -877,18 +877,18 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                     return -err;
                 }
             }
-            ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
-            if (ret) {
-                int err = errno;
-                ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), md[i].uid, md[i].gid,
-                      ret, err, strerror(err));
-                return -err;
-            }
             ret = chmod(mapPinLoc.c_str(), md[i].mode);
             if (ret) {
                 int err = errno;
                 ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapPinLoc.c_str(), md[i].mode, ret, err,
                       strerror(err));
+                return -err;
+            }
+            ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
+            if (ret) {
+                int err = errno;
+                ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), md[i].uid, md[i].gid,
+                      ret, err, strerror(err));
                 return -err;
             }
         }
