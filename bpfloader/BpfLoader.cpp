@@ -61,6 +61,30 @@ constexpr unsigned long long kTetheringApexDomainBitmask =
         domainToBitmask(domain::netd_readonly) |
         domainToBitmask(domain::netd_shared);
 
+// Programs shipped inside the tethering apex should be limited to networking stuff,
+// as KPROBE, PERF_EVENT, TRACEPOINT are dangerous to use from mainline updatable code,
+// since they are less stable abi/api and may conflict with platform uses of bpf.
+constexpr bpf_prog_type kTetheringApexAllowedProgTypes[] = {
+        BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
+        BPF_PROG_TYPE_CGROUP_SKB,
+        BPF_PROG_TYPE_CGROUP_SOCK,
+        BPF_PROG_TYPE_SCHED_ACT,
+        BPF_PROG_TYPE_SCHED_CLS,
+        BPF_PROG_TYPE_SOCKET_FILTER,
+        BPF_PROG_TYPE_XDP,
+};
+
+// Networking-related program types are limited to the Tethering Apex
+// to prevent things from breaking due to conflicts on mainline updates
+// (exception made for socket filters, ie. xt_bpf for potential use in iptables,
+// or for attaching to sockets directly)
+constexpr bpf_prog_type kPlatformAllowedProgTypes[] = {
+        BPF_PROG_TYPE_KPROBE,
+        BPF_PROG_TYPE_PERF_EVENT,
+        BPF_PROG_TYPE_SOCKET_FILTER,
+        BPF_PROG_TYPE_TRACEPOINT,
+};
+
 // see b/162057235. For arbitrary program types, the concern is that due to the lack of
 // SELinux access controls over BPF program attachpoints, we have no way to control the
 // attachment of programs to shared resources (or to detect when a shared resource
@@ -83,6 +107,8 @@ const Location locations[] = {
                 .dir = "/apex/com.android.tethering/etc/bpf/",
                 .prefix = "tethering/",
                 .allowedDomainBitmask = kTetheringApexDomainBitmask,
+                .allowedProgTypes = kTetheringApexAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
         },
         // T+ Tethering mainline module (shared with netd & system server)
         // netutils_wrapper (for iptables xt_bpf) has access to programs
@@ -90,6 +116,8 @@ const Location locations[] = {
                 .dir = "/apex/com.android.tethering/etc/bpf/netd_shared/",
                 .prefix = "netd_shared/",
                 .allowedDomainBitmask = kTetheringApexDomainBitmask,
+                .allowedProgTypes = kTetheringApexAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
         },
         // T+ Tethering mainline module (shared with netd & system server)
         // netutils_wrapper has no access, netd has read only access
@@ -97,24 +125,32 @@ const Location locations[] = {
                 .dir = "/apex/com.android.tethering/etc/bpf/netd_readonly/",
                 .prefix = "netd_readonly/",
                 .allowedDomainBitmask = kTetheringApexDomainBitmask,
+                .allowedProgTypes = kTetheringApexAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
         },
         // T+ Tethering mainline module (shared with system server)
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/net_shared/",
                 .prefix = "net_shared/",
                 .allowedDomainBitmask = kTetheringApexDomainBitmask,
+                .allowedProgTypes = kTetheringApexAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
         },
         // T+ Tethering mainline module (not shared, just network_stack)
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/net_private/",
                 .prefix = "net_private/",
                 .allowedDomainBitmask = kTetheringApexDomainBitmask,
+                .allowedProgTypes = kTetheringApexAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
         },
         // Core operating system
         {
                 .dir = "/system/etc/bpf/",
                 .prefix = "",
                 .allowedDomainBitmask = domainToBitmask(domain::platform),
+                .allowedProgTypes = kPlatformAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kPlatformAllowedProgTypes),
         },
         // Vendor operating system
         {
