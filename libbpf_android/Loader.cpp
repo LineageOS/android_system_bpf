@@ -871,7 +871,11 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                 }
             } else {
                 ret = bpf_obj_pin(fd, mapPinLoc.c_str());
-                if (ret) return -errno;
+                if (ret) {
+                    int err = errno;
+                    ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
+                    return -err;
+                }
             }
             ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
             if (ret) {
