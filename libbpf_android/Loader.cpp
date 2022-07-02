@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.19
+// This is BpfLoader v0.22
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 19u
+#define BPFLOADER_VERSION_MINOR 22u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -822,7 +822,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         int saved_errno;
 
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
-            fd.reset(bpf_obj_get(mapPinLoc.c_str()));
+            fd.reset(mapRetrieveRO(mapPinLoc.c_str()));
             saved_errno = errno;
             ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
             reuse = true;
@@ -871,20 +871,24 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                 }
             } else {
                 ret = bpf_obj_pin(fd, mapPinLoc.c_str());
-                if (ret) return -errno;
-            }
-            ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
-            if (ret) {
-                int err = errno;
-                ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), md[i].uid, md[i].gid,
-                      ret, err, strerror(err));
-                return -err;
+                if (ret) {
+                    int err = errno;
+                    ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
+                    return -err;
+                }
             }
             ret = chmod(mapPinLoc.c_str(), md[i].mode);
             if (ret) {
                 int err = errno;
                 ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapPinLoc.c_str(), md[i].mode, ret, err,
                       strerror(err));
+                return -err;
+            }
+            ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
+            if (ret) {
+                int err = errno;
+                ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), md[i].uid, md[i].gid,
+                      ret, err, strerror(err));
                 return -err;
             }
         }
