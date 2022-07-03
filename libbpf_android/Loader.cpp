@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.23
+// This is BpfLoader v0.24
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 23u
+#define BPFLOADER_VERSION_MINOR 24u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -1180,6 +1180,8 @@ int loadProg(const char* elfPath, bool* isCritical, const char* prefix,
             readSectionUint("bpfloader_min_ver", elfFile, DEFAULT_BPFLOADER_MIN_VER);
     unsigned int bpfLoaderMaxVer =
             readSectionUint("bpfloader_max_ver", elfFile, DEFAULT_BPFLOADER_MAX_VER);
+    unsigned int bpfLoaderMinRequiredVer =
+            readSectionUint("bpfloader_min_required_ver", elfFile, 0);
     size_t sizeOfBpfMapDef =
             readSectionUint("size_of_bpf_map_def", elfFile, DEFAULT_SIZEOF_BPF_MAP_DEF);
     size_t sizeOfBpfProgDef =
@@ -1197,6 +1199,12 @@ int loadProg(const char* elfPath, bool* isCritical, const char* prefix,
         ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with max ver 0x%05x",
               BPFLOADER_VERSION, elfPath, bpfLoaderMaxVer);
         return 0;
+    }
+
+    if (BPFLOADER_VERSION < bpfLoaderMinRequiredVer) {
+        ALOGI("BpfLoader version 0x%05x failing due to ELF object %s with required min ver 0x%05x",
+              BPFLOADER_VERSION, elfPath, bpfLoaderMinRequiredVer);
+        return -1;
     }
 
     ALOGI("BpfLoader version 0x%05x processing ELF object %s with ver [0x%05x,0x%05x)",
