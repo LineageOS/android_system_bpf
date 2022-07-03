@@ -93,7 +93,7 @@ domain getDomainFromSelinuxContext(const char s[BPF_SELINUX_CONTEXT_CHAR_ARRAY_S
         if (strlen(lookupSelinuxContext(d)) >= BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE) abort();
         if (!strncmp(s, lookupSelinuxContext(d), BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE)) return d;
     }
-    ALOGW("ignoring unrecognized selinux_context '%32s'", s);
+    ALOGW("ignoring unrecognized selinux_context '%-32s'", s);
     // We should return 'unrecognized' here, however: returning unspecified will
     // result in the system simply using the default context, which in turn
     // will allow future expansion by adding more restrictive selinux types.
@@ -124,7 +124,7 @@ domain getDomainFromPinSubdir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
         if (strlen(lookupPinSubdir(d)) >= BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE) abort();
         if (!strncmp(s, lookupPinSubdir(d), BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return d;
     }
-    ALOGE("unrecognized pin_subdir '%32s'", s);
+    ALOGE("unrecognized pin_subdir '%-32s'", s);
     // pin_subdir affects the object's full pathname,
     // and thus using the default would change the location and thus our code's ability to find it,
     // hence this seems worth treating as a true error condition.
@@ -795,7 +795,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                       mapNames[i].c_str(), selinux_context, allowedDomainBitmask);
                 return -EINVAL;
             }
-            ALOGI("map %s selinux_context [%32s] -> %d -> '%s' (%s)", mapNames[i].c_str(),
+            ALOGI("map %s selinux_context [%-32s] -> %d -> '%s' (%s)", mapNames[i].c_str(),
                   md[i].selinux_context, selinux_context, lookupSelinuxContext(selinux_context),
                   lookupPinSubdir(selinux_context));
         }
@@ -808,7 +808,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                       mapNames[i].c_str(), pin_subdir, allowedDomainBitmask);
                 return -EINVAL;
             }
-            ALOGI("map %s pin_subdir [%32s] -> %d -> '%s'", mapNames[i].c_str(), md[i].pin_subdir,
+            ALOGI("map %s pin_subdir [%-32s] -> %d -> '%s'", mapNames[i].c_str(), md[i].pin_subdir,
                   pin_subdir, lookupPinSubdir(pin_subdir));
         }
 
@@ -1025,7 +1025,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                       name.c_str(), selinux_context, allowedDomainBitmask);
                 return -EINVAL;
             }
-            ALOGI("prog %s selinux_context [%32s] -> %d -> '%s' (%s)", name.c_str(),
+            ALOGI("prog %s selinux_context [%-32s] -> %d -> '%s' (%s)", name.c_str(),
                   cs[i].prog_def->selinux_context, selinux_context,
                   lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
         }
@@ -1036,7 +1036,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                       pin_subdir, allowedDomainBitmask);
                 return -EINVAL;
             }
-            ALOGI("prog %s pin_subdir [%32s] -> %d -> '%s'", name.c_str(),
+            ALOGI("prog %s pin_subdir [%-32s] -> %d -> '%s'", name.c_str(),
                   cs[i].prog_def->pin_subdir, pin_subdir, lookupPinSubdir(pin_subdir));
         }
 
