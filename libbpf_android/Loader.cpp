@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.24
+// This is BpfLoader v0.25
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 24u
+#define BPFLOADER_VERSION_MINOR 25u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -135,15 +135,14 @@ domain getDomainFromPinSubdir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
     return domain::unrecognized;
 }
 
-static string pathToFilename(const string& path, bool noext = false) {
-    vector<string> spath = android::base::Split(path, "/");
-    string ret = spath.back();
-
-    if (noext) {
-        size_t lastindex = ret.find_last_of('.');
-        return ret.substr(0, lastindex);
-    }
-    return ret;
+static string pathToObjName(const string& path) {
+    // extract everything after the final slash, ie. this is the filename 'foo@1.o' or 'bar.o'
+    string filename = android::base::Split(path, "/").back();
+    // strip off everything from the final period onwards (strip '.o' suffix), ie. 'foo@1' or 'bar'
+    string name = filename.substr(0, filename.find_last_of('.'));
+    // strip any potential @1 suffix, this will leave us with just 'foo' or 'bar'
+    // this can be used to provide duplicate programs (mux based on the bpfloader version)
+    return name.substr(0, name.find_last_of('@'));
 }
 
 typedef struct {
@@ -695,7 +694,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     vector<struct bpf_map_def> md;
     vector<string> mapNames;
     std::unordered_map<string, std::pair<uint32_t, uint32_t>> btfTypeIdMap;
-    string fname = pathToFilename(string(elfPath), true);
+    string objName = pathToObjName(string(elfPath));
 
     ret = readSectionByName("maps", elfFile, mdData);
     if (ret == -2) return 0;  // no maps to read
@@ -812,11 +811,11 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                   pin_subdir, lookupPinSubdir(pin_subdir));
         }
 
-        // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<filename>_<mapname>
-        // except that maps shared across .o's have empty <filename>
-        // Note: <filename> refers to the extension-less basename of the .o file.
+        // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<objName>_<mapName>
+        // except that maps shared across .o's have empty <objName>
+        // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
         string mapPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "map_" +
-                           (md[i].shared ? "" : fname) + "_" + mapNames[i];
+                           (md[i].shared ? "" : objName) + "_" + mapNames[i];
         bool reuse = false;
         unique_fd fd;
         int saved_errno;
@@ -855,7 +854,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (!reuse) {
             if (specified(selinux_context)) {
                 string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
-                                   "tmp_map_" + fname + "_" + mapNames[i];
+                                   "tmp_map_" + objName + "_" + mapNames[i];
                 ret = bpf_obj_pin(fd, createLoc.c_str());
                 if (ret) {
                     int err = errno;
@@ -988,7 +987,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
     if (!kvers) return -1;
 
-    string fname = pathToFilename(string(elfPath), true);
+    string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
         string name = cs[i].name;
@@ -1047,9 +1046,9 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
         bool reuse = false;
         // Format of pin location is
-        // /sys/fs/bpf/<prefix>prog_<filename>_<mapname>
+        // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
         string progPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "prog_" +
-                            fname + '_' + string(name);
+                            objName + '_' + string(name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd = retrieveProgram(progPinLoc.c_str());
             ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd,
@@ -1094,7 +1093,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (!reuse) {
             if (specified(selinux_context)) {
                 string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
-                                   "tmp_prog_" + fname + '_' + string(name);
+                                   "tmp_prog_" + objName + '_' + string(name);
                 ret = bpf_obj_pin(fd, createLoc.c_str());
                 if (ret) {
                     int err = errno;
