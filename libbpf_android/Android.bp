@@ -86,8 +86,8 @@ cc_test {
     ],
 
     data: [
-        ":bpf_load_tp_prog.o",
-        ":bpf_load_tp_prog_btf.o",
+        ":bpfLoadTpProg.o",
+        ":bpfLoadTpProgBtf.o",
     ],
     require_root: true,
 }
