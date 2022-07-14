@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.25
+// This is BpfLoader v0.26
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 25u
+#define BPFLOADER_VERSION_MINOR 26u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -1078,7 +1078,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                 for (const auto& line : lines) ALOGW("%s", line.c_str());
                 ALOGW("bpf_prog_load - END log_buf contents.");
 
-                if (cs[i].prog_def->optional) {
+                if (cs[i].prog_def.has_value() && cs[i].prog_def->optional) {
                     ALOGW("failed program is marked optional - continuing...");
                     continue;
                 }
