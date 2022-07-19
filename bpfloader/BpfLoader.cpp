@@ -54,6 +54,32 @@ using android::base::EndsWith;
 using android::bpf::domain;
 using std::string;
 
+bool exists(const char* const path) {
+    int v = access(path, F_OK);
+    if (!v) {
+        ALOGI("%s exists.", path);
+        return true;
+    }
+    if (errno == ENOENT) return false;
+    ALOGE("FATAL: access(%s, F_OK) -> %d [%d:%s]", path, v, errno, strerror(errno));
+    abort();  // can only hit this if permissions (likely selinux) are screwed up
+}
+
+bool isInProcessTethering() {
+    bool in = exists("/apex/com.android.tethering/etc/flag/in-process");
+    bool out = exists("/apex/com.android.tethering/etc/flag/out-of-process");
+    if (in && out) abort();  // bad build
+
+    // Handle cases where the module explicitly tells us
+    if (in) return true;
+    if (out) return false;
+
+    // Backup handling for older tethering modules, which don't have a flag,
+    // just assume it's not in process.  We could potentially just abort()
+    // here, but what if there isn't even a tethering module installed?
+    return false;
+}
+
 constexpr unsigned long long kTetheringApexDomainBitmask =
         domainToBitmask(domain::tethering) |
         domainToBitmask(domain::net_private) |
@@ -203,7 +229,7 @@ void createSysFsBpfSubDir(const char* const prefix) {
         errno = 0;
         int ret = mkdir(s.c_str(), S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
         if (ret && errno != EEXIST) {
-            ALOGW("Failed to create directory: %s, ret: %s", s.c_str(), std::strerror(errno));
+            ALOGE("Failed to create directory: %s, ret: %s", s.c_str(), std::strerror(errno));
         }
 
         umask(prevUmask);
@@ -213,6 +239,21 @@ void createSysFsBpfSubDir(const char* const prefix) {
 int main(int argc, char** argv) {
     (void)argc;
     android::base::InitLogging(argv, &android::base::KernelLogger);
+
+    // This is ugly... but this allows InProcessTethering which runs as system_server,
+    // instead of as network_stack to access /sys/fs/bpf/tethering, which would otherwise
+    // (due to genfscon rules) have fs_bpf_tethering selinux context, which is restricted
+    // to the network_stack process only (which is where out of process tethering runs)
+    if (isInProcessTethering() && !exists("/sys/fs/bpf/tethering")) {
+        createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared");
+        createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared/tethering");
+
+        /* /sys/fs/bpf/tethering -> net_shared/tethering */
+        if (symlink("net_shared/tethering", "/sys/fs/bpf/tethering")) {
+            ALOGE("symlink(net_shared/tethering, /sys/fs/bpf/tethering) -> %s", strerror(errno));
+            return 1;
+        }
+    }
 
     // Create all the pin subdirectories
     // (this must be done first to allow selinux_context and pin_subdir functionality,
