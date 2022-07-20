@@ -8,5 +8,10 @@
     {
       "name": "libbpf_load_test"
     }
+  ],
+  "imports": [
+    {
+      "path": "packages/modules/Connectivity"
+    }
   ]
 }
