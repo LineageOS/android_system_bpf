@@ -74,10 +74,8 @@ bool isInProcessTethering() {
     if (in) return true;
     if (out) return false;
 
-    // Backup handling for older tethering modules, which don't have a flag,
-    // just assume it's not in process.  We could potentially just abort()
-    // here, but what if there isn't even a tethering module installed?
-    return false;
+    ALOGE("FATAL: cannot determine if Tethering is in or out of process.");
+    abort();
 }
 
 constexpr unsigned long long kTetheringApexDomainBitmask =
