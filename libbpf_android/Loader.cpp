@@ -39,6 +39,10 @@
 #include "bpf/bpf_map_def.h"
 #include "include/libbpf_android.h"
 
+#if BPFLOADER_VERSION < COMPILE_FOR_BPFLOADER_VERSION
+#error "BPFLOADER_VERSION is less than COMPILE_FOR_BPFLOADER_VERSION"
+#endif
+
 #include <bpf/bpf.h>
 
 #include <cstdlib>
