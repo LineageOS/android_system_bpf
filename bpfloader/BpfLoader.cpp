@@ -107,6 +107,7 @@ constexpr bpf_prog_type kPlatformAllowedProgTypes[] = {
         BPF_PROG_TYPE_PERF_EVENT,
         BPF_PROG_TYPE_SOCKET_FILTER,
         BPF_PROG_TYPE_TRACEPOINT,
+        BPF_PROG_TYPE_UNSPEC,  // Will be replaced with fuse bpf program type
 };
 
 // see b/162057235. For arbitrary program types, the concern is that due to the lack of
