@@ -358,16 +358,18 @@ static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
     return 0;
 }
 
+static enum bpf_prog_type getFuseProgType() {
+    int result = BPF_PROG_TYPE_UNSPEC;
+    ifstream("/sys/fs/fuse/bpf_prog_type_fuse") >> result;
+    return static_cast<bpf_prog_type>(result);
+}
+
 static enum bpf_prog_type getSectionType(string& name) {
     for (auto& snt : sectionNameTypes)
         if (StartsWith(name, snt.name)) return snt.type;
 
     // TODO Remove this code when fuse-bpf is upstream and this BPF_PROG_TYPE_FUSE is fixed
-    if (StartsWith(name, "fuse/")) {
-        int result = BPF_PROG_TYPE_UNSPEC;
-        ifstream("/sys/fs/fuse/bpf_prog_type_fuse") >> result;
-        return static_cast<bpf_prog_type>(result);
-    }
+    if (StartsWith(name, "fuse/")) return getFuseProgType();
 
     return BPF_PROG_TYPE_UNSPEC;
 }
@@ -469,7 +471,10 @@ static bool IsAllowed(bpf_prog_type type, const bpf_prog_type* allowed, size_t n
     if (allowed == nullptr) return true;
 
     for (size_t i = 0; i < numAllowed; i++) {
-        if (type == allowed[i]) return true;
+        if (allowed[i] == BPF_PROG_TYPE_UNSPEC) {
+            if (type == getFuseProgType()) return true;
+        } else if (type == allowed[i])
+            return true;
     }
 
     return false;
