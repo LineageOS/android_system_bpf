@@ -199,6 +199,15 @@ int main(int argc, char** argv) {
         }
     }
 
+    int key = 1;
+    int value = 123;
+    android::base::unique_fd map(
+            android::bpf::createMap(BPF_MAP_TYPE_ARRAY, sizeof(key), sizeof(value), 2, 0));
+    if (android::bpf::writeToMapEntry(map, &key, &value, BPF_ANY)) {
+        ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
+        return 1;
+    }
+
     if (android::base::SetProperty("bpf.progs_loaded", "1") == false) {
         ALOGE("Failed to set bpf.progs_loaded property");
         return 1;
