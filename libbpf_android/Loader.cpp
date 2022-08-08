@@ -995,32 +995,34 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     unsigned kvers = kernelVersion();
     int ret, fd;
 
-    if (!kvers) return -1;
+    if (!kvers) {
+        ALOGE("unable to get kernel version");
+        return -EINVAL;
+    }
 
     string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
         string name = cs[i].name;
-        unsigned bpfMinVer = DEFAULT_BPFLOADER_MIN_VER;  // v0.0
-        unsigned bpfMaxVer = DEFAULT_BPFLOADER_MAX_VER;  // v1.0
-        domain selinux_context = domain::unspecified;
-        domain pin_subdir = domain::unspecified;
 
-        if (cs[i].prog_def.has_value()) {
-            unsigned min_kver = cs[i].prog_def->min_kver;
-            unsigned max_kver = cs[i].prog_def->max_kver;
-            ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)", i, name.c_str(), min_kver,
-                  max_kver, kvers);
-            if (kvers < min_kver) continue;
-            if (kvers >= max_kver) continue;
-
-            bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
-            bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
-            selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
-            pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
-            // Note: make sure to only check for unrecognized *after* verifying bpfloader
-            // version limits include this bpfloader's version.
+        if (!cs[i].prog_def.has_value()) {
+            ALOGE("[%d] '%s' missing program definition! bad bpf.o build?", i, name.c_str());
+            return -EINVAL;
         }
+
+        unsigned min_kver = cs[i].prog_def->min_kver;
+        unsigned max_kver = cs[i].prog_def->max_kver;
+        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)", i, name.c_str(), min_kver,
+             max_kver, kvers);
+        if (kvers < min_kver) continue;
+        if (kvers >= max_kver) continue;
+
+        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
+        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
+        domain selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
+        domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
+        // Note: make sure to only check for unrecognized *after* verifying bpfloader
+        // version limits include this bpfloader's version.
 
         ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)", i, name.c_str(),
               bpfMinVer, bpfMaxVer);
@@ -1089,7 +1091,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                 for (const auto& line : lines) ALOGW("%s", line.c_str());
                 ALOGW("bpf_prog_load - END log_buf contents.");
 
-                if (cs[i].prog_def.has_value() && cs[i].prog_def->optional) {
+                if (cs[i].prog_def->optional) {
                     ALOGW("failed program is marked optional - continuing...");
                     continue;
                 }
@@ -1130,14 +1132,12 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                 ALOGE("chmod %s 0440 -> [%d:%s]", progPinLoc.c_str(), err, strerror(err));
                 return -err;
             }
-            if (cs[i].prog_def.has_value()) {
-                if (chown(progPinLoc.c_str(), (uid_t)cs[i].prog_def->uid,
-                          (gid_t)cs[i].prog_def->gid)) {
-                    int err = errno;
-                    ALOGE("chown %s %d %d -> [%d:%s]", progPinLoc.c_str(), cs[i].prog_def->uid,
-                          cs[i].prog_def->gid, err, strerror(err));
-                    return -err;
-                }
+            if (chown(progPinLoc.c_str(), (uid_t)cs[i].prog_def->uid,
+                      (gid_t)cs[i].prog_def->gid)) {
+                int err = errno;
+                ALOGE("chown %s %d %d -> [%d:%s]", progPinLoc.c_str(), cs[i].prog_def->uid,
+                      cs[i].prog_def->gid, err, strerror(err));
+                return -err;
             }
         }
 
