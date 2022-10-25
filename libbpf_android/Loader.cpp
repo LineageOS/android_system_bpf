@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.28
+// This is BpfLoader v0.29
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 28u
+#define BPFLOADER_VERSION_MINOR 29u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -648,15 +648,6 @@ static std::optional<unique_fd> getMapBtfInfo(const char* elfPath,
 
 static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
                                    const struct bpf_map_def& mapDef, const enum bpf_map_type type) {
-    // bpfGetFd... family of functions require at minimum a 4.14 kernel,
-    // so on 4.9 kernels just pretend the map matches our expectations.
-    // This isn't really a problem as we only really support 4.14+ anyway...
-    // Additionally we'll get almost equivalent test coverage on newer devices/kernels.
-    // This is because the primary failure mode we're trying to detect here
-    // is either a source code misconfiguration (which is likely kernel independent)
-    // or a newly introduced kernel feature/bug (which is unlikely to get backported to 4.9).
-    if (!isAtLeastKernelVersion(4, 14, 0)) return true;
-
     // Assuming fd is a valid Bpf Map file descriptor then
     // all the following should always succeed on a 4.14+ kernel.
     // If they somehow do fail, they'll return -1 (and set errno),
@@ -777,16 +768,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         }
 
         enum bpf_map_type type = md[i].type;
-        if (type == BPF_MAP_TYPE_DEVMAP && !isAtLeastKernelVersion(4, 14, 0)) {
-            // On Linux Kernels older than 4.14 this map type doesn't exist, but it can kind
-            // of be approximated: ARRAY has the same userspace api, though it is not usable
-            // by the same ebpf programs.  However, that's okay because the bpf_redirect_map()
-            // helper doesn't exist on 4.9 anyway (so the bpf program would fail to load,
-            // and thus needs to be tagged as 4.14+ either way), so there's nothing useful you
-            // could do with a DEVMAP anyway (that isn't already provided by an ARRAY)...
-            // Hence using an ARRAY instead of a DEVMAP simply makes life easier for userspace.
-            type = BPF_MAP_TYPE_ARRAY;
-        }
         if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
             // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
             // of be approximated: HASH has the same userspace visible api.
