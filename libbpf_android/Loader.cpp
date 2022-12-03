@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.29
+// This is BpfLoader v0.30
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 29u
+#define BPFLOADER_VERSION_MINOR 30u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "bpf/BpfUtils.h"
@@ -87,6 +87,7 @@ constexpr const char* lookupSelinuxContext(const domain d, const char* const uns
         case domain::netd_readonly: return "fs_bpf_netd_readonly";
         case domain::netd_shared:   return "fs_bpf_netd_shared";
         case domain::vendor:        return "fs_bpf_vendor";
+        case domain::loader:        return "fs_bpf_loader";
         default:                    return "(unrecognized)";
     }
 }
@@ -118,6 +119,7 @@ constexpr const char* lookupPinSubdir(const domain d, const char* const unspecif
         case domain::netd_readonly: return "netd_readonly/";
         case domain::netd_shared:   return "netd_shared/";
         case domain::vendor:        return "vendor/";
+        case domain::loader:        return "loader/";
         default:                    return "(unrecognized)";
     }
 };
