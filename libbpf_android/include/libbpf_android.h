@@ -45,7 +45,6 @@ enum class domain : int {
     netd_readonly,      // (T+) fs_bpf_netd_readonly /sys/fs/bpf/netd_readonly
     netd_shared,        // (T+) fs_bpf_netd_shared   /sys/fs/bpf/netd_shared
     vendor,             // (T+) fs_bpf_vendor        /sys/fs/bpf/vendor
-    loader,             // (U+) fs_bpf_loader        /sys/fs/bpf/loader
 };
 
 // Note: this does not include domain::unrecognized, but does include domain::unspecified
@@ -58,7 +57,6 @@ static constexpr domain AllDomains[] = {
     domain::netd_readonly,
     domain::netd_shared,
     domain::vendor,
-    domain::loader,
 };
 
 static constexpr bool unrecognized(domain d) {
