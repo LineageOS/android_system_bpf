@@ -218,7 +218,7 @@ int loadAllElfObjects(const Location& location) {
     return retVal;
 }
 
-void createSysFsBpfSubDir(const char* const prefix) {
+int createSysFsBpfSubDir(const char* const prefix) {
     if (*prefix) {
         mode_t prevUmask = umask(0);
 
@@ -228,11 +228,14 @@ void createSysFsBpfSubDir(const char* const prefix) {
         errno = 0;
         int ret = mkdir(s.c_str(), S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
         if (ret && errno != EEXIST) {
-            ALOGE("Failed to create directory: %s, ret: %s", s.c_str(), std::strerror(errno));
+            const int err = errno;
+            ALOGE("Failed to create directory: %s, ret: %s", s.c_str(), std::strerror(err));
+            return -err;
         }
 
         umask(prevUmask);
     }
+    return 0;
 }
 
 int main(int argc, char** argv) {
@@ -244,8 +247,8 @@ int main(int argc, char** argv) {
     // (due to genfscon rules) have fs_bpf_tethering selinux context, which is restricted
     // to the network_stack process only (which is where out of process tethering runs)
     if (isInProcessTethering() && !exists("/sys/fs/bpf/tethering")) {
-        createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared");
-        createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared/tethering");
+        if (createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared")) return 1;
+        if (createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared/tethering")) return 1;
 
         /* /sys/fs/bpf/tethering -> net_shared/tethering */
         if (symlink("net_shared/tethering", "/sys/fs/bpf/tethering")) {
@@ -259,8 +262,15 @@ int main(int argc, char** argv) {
     //  which could otherwise fail with ENOENT during object pinning or renaming,
     //  due to ordering issues)
     for (const auto& location : locations) {
-        createSysFsBpfSubDir(location.prefix);
+        if (createSysFsBpfSubDir(location.prefix)) return 1;
     }
+
+    // Note: there's no actual src dir for fs_bpf_loader .o's,
+    // so it is not listed in 'locations[].prefix'.
+    // This is because this is primarily meant for triggering genfscon rules,
+    // and as such this will likely always be the case.
+    // Thus we need to manually create the /sys/fs/bpf/loader subdirectory.
+    if (createSysFsBpfSubDir("loader")) return 1;
 
     // Load all ELF objects, create programs and maps, and pin them
     for (const auto& location : locations) {
