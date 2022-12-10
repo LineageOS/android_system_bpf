@@ -218,7 +218,7 @@ int loadAllElfObjects(const Location& location) {
     return retVal;
 }
 
-void createSysFsBpfSubDir(const char* const prefix) {
+int createSysFsBpfSubDir(const char* const prefix) {
     if (*prefix) {
         mode_t prevUmask = umask(0);
 
@@ -228,24 +228,65 @@ void createSysFsBpfSubDir(const char* const prefix) {
         errno = 0;
         int ret = mkdir(s.c_str(), S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
         if (ret && errno != EEXIST) {
-            ALOGE("Failed to create directory: %s, ret: %s", s.c_str(), std::strerror(errno));
+            const int err = errno;
+            ALOGE("Failed to create directory: %s, ret: %s", s.c_str(), std::strerror(err));
+            return -err;
         }
 
         umask(prevUmask);
     }
+    return 0;
+}
+
+// Technically 'value' doesn't need to be newline terminated, but it's best
+// to include a newline to match 'echo "value" > /proc/sys/...foo' behaviour,
+// which is usually how kernel devs test the actual sysctl interfaces.
+int writeProcSysFile(const char *filename, const char *value) {
+    android::base::unique_fd fd(open(filename, O_WRONLY | O_CLOEXEC));
+    if (fd < 0) {
+        const int err = errno;
+        ALOGE("open('%s', O_WRONLY | O_CLOEXEC) -> %s", filename, strerror(err));
+        return -err;
+    }
+    int len = strlen(value);
+    int v = write(fd, value, len);
+    if (v < 0) {
+        const int err = errno;
+        ALOGE("write('%s', '%s', %d) -> %s", filename, value, len, strerror(err));
+        return -err;
+    }
+    if (v != len) {
+        // In practice, due to us only using this for /proc/sys/... files, this can't happen.
+        ALOGE("write('%s', '%s', %d) -> short write [%d]", filename, value, len, v);
+        return -EINVAL;
+    }
+    return 0;
 }
 
 int main(int argc, char** argv) {
     (void)argc;
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
+    // Linux 5.16-rc1 changed the default to 2 (disabled but changeable), but we need 0 (enabled)
+    // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on pre-5.13,
+    // on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
+    if (writeProcSysFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
+        android::bpf::isAtLeastKernelVersion(5, 13, 0)) return 1;
+
+    // Enable the eBPF JIT -- but do note that on 64-bit kernels it is likely
+    // already force enabled by the kernel config option BPF_JIT_ALWAYS_ON
+    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 1;
+
+    // Enable JIT kallsyms export for privileged users only
+    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
+
     // This is ugly... but this allows InProcessTethering which runs as system_server,
     // instead of as network_stack to access /sys/fs/bpf/tethering, which would otherwise
     // (due to genfscon rules) have fs_bpf_tethering selinux context, which is restricted
     // to the network_stack process only (which is where out of process tethering runs)
     if (isInProcessTethering() && !exists("/sys/fs/bpf/tethering")) {
-        createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared");
-        createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared/tethering");
+        if (createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared")) return 1;
+        if (createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared/tethering")) return 1;
 
         /* /sys/fs/bpf/tethering -> net_shared/tethering */
         if (symlink("net_shared/tethering", "/sys/fs/bpf/tethering")) {
@@ -259,8 +300,15 @@ int main(int argc, char** argv) {
     //  which could otherwise fail with ENOENT during object pinning or renaming,
     //  due to ordering issues)
     for (const auto& location : locations) {
-        createSysFsBpfSubDir(location.prefix);
+        if (createSysFsBpfSubDir(location.prefix)) return 1;
     }
+
+    // Note: there's no actual src dir for fs_bpf_loader .o's,
+    // so it is not listed in 'locations[].prefix'.
+    // This is because this is primarily meant for triggering genfscon rules,
+    // and as such this will likely always be the case.
+    // Thus we need to manually create the /sys/fs/bpf/loader subdirectory.
+    if (createSysFsBpfSubDir("loader")) return 1;
 
     // Load all ELF objects, create programs and maps, and pin them
     for (const auto& location : locations) {

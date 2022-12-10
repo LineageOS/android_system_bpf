@@ -15,14 +15,6 @@
 # considered to have booted successfully.
 #
 on load_bpf_programs
-    # Linux 5.16-rc1 has changed the default to 2 (disabled but changeable),
-    # but we need 0
-    write /proc/sys/kernel/unprivileged_bpf_disabled 0
-    # Enable the eBPF JIT -- but do note that on 64-bit kernels it is likely
-    # already force enabled by the kernel config option BPF_JIT_ALWAYS_ON
-    write /proc/sys/net/core/bpf_jit_enable 1
-    # Enable JIT kallsyms export for privileged users only
-    write /proc/sys/net/core/bpf_jit_kallsyms 1
     exec_start bpfloader
 
 service bpfloader /system/bin/bpfloader
