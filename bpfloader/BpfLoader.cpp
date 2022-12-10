@@ -48,6 +48,7 @@
 #include <log/log.h>
 #include <netdutils/Misc.h>
 #include <netdutils/Slice.h>
+#include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 
 using android::base::EndsWith;
