@@ -53,9 +53,15 @@ class BpfLoadTest : public TestWithParam<std::string> {
         bpf_prog_type kAllowed[] = {
                 BPF_PROG_TYPE_UNSPEC,
         };
-        EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical, "", 0, kAllowed,
-                                         arraysize(kAllowed)),
-                  -1);
+
+        Location loc = {
+            .dir = "",
+            .prefix = "",
+            .allowedDomainBitmask = 0,
+            .allowedProgTypes = kAllowed,
+            .allowedProgTypesLength = arraysize(kAllowed),
+        };
+        EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical, loc), -1);
 
         EXPECT_EQ(android::bpf::loadProg(progPath.c_str(), &critical), 0);
         EXPECT_EQ(false, critical);

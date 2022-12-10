@@ -118,15 +118,8 @@ constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
         BPF_PROG_TYPE_SOCKET_FILTER,
 };
 
-struct Location {
-    const char* const dir;
-    const char* const prefix;
-    unsigned long long allowedDomainBitmask;
-    const bpf_prog_type* allowedProgTypes = nullptr;
-    size_t allowedProgTypesLength = 0;
-};
 
-const Location locations[] = {
+const android::bpf::Location locations[] = {
         // S+ Tethering mainline module (network_stack): tether offload
         {
                 .dir = "/apex/com.android.tethering/etc/bpf/",
@@ -187,7 +180,7 @@ const Location locations[] = {
         },
 };
 
-int loadAllElfObjects(const Location& location) {
+int loadAllElfObjects(const android::bpf::Location& location) {
     int retVal = 0;
     DIR* dir;
     struct dirent* ent;
@@ -201,11 +194,7 @@ int loadAllElfObjects(const Location& location) {
             progPath += s;
 
             bool critical;
-            int ret = android::bpf::loadProg(progPath.c_str(), &critical,
-                                             location.prefix,
-                                             location.allowedDomainBitmask,
-                                             location.allowedProgTypes,
-                                             location.allowedProgTypesLength);
+            int ret = android::bpf::loadProg(progPath.c_str(), &critical, location);
             if (ret) {
                 if (critical) retVal = ret;
                 ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), std::strerror(-ret));
