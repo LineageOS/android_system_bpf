@@ -59,4 +59,11 @@ cc_binary {
         "timeInState.o"
     ],
 
+    product_variables: {
+        debuggable: {
+            required: [
+                "bpfRingbufProg.o",
+            ],
+        },
+    }
 }
