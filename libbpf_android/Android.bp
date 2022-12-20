@@ -39,6 +39,7 @@ cc_library {
 
     shared_libs: [
         "libbase",
+        "libcutils",
         "libutils",
         "liblog",
         "libbpf_bcc",
