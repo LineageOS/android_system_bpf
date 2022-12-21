@@ -30,11 +30,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.31
+// This is BpfLoader v0.32
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 31u
+#define BPFLOADER_VERSION_MINOR 32u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
+#include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 #include "bpf/bpf_map_def.h"
 #include "include/libbpf_android.h"
@@ -57,6 +58,7 @@
 #include <android-base/file.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <cutils/properties.h>
 
 #define BPF_FS_PATH "/sys/fs/bpf/"
 
@@ -74,8 +76,19 @@ using std::optional;
 using std::string;
 using std::vector;
 
+static std::string getBuildTypeInternal() {
+    char value[PROPERTY_VALUE_MAX] = {};
+    (void)property_get("ro.build.type", value, "unknown");  // ignore length
+    return value;
+}
+
 namespace android {
 namespace bpf {
+
+const std::string& getBuildType() {
+    static std::string t = getBuildTypeInternal();
+    return t;
+}
 
 constexpr const char* lookupSelinuxContext(const domain d, const char* const unspecified = "") {
     switch (d) {
@@ -769,6 +782,14 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             continue;
         }
 
+        if ((md[i].ignore_on_eng && isEng()) || (md[i].ignore_on_user && isUser()) ||
+            (md[i].ignore_on_userdebug && isUserdebug())) {
+            ALOGI("skipping map %s which is ignored on %s builds", mapNames[i].c_str(),
+                  getBuildType().c_str());
+            mapFds.push_back(unique_fd());
+            continue;
+        }
+
         enum bpf_map_type type = md[i].type;
         if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
             // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
@@ -1011,6 +1032,14 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
               bpfMinVer, bpfMaxVer);
         if (BPFLOADER_VERSION < bpfMinVer) continue;
         if (BPFLOADER_VERSION >= bpfMaxVer) continue;
+
+        if ((cs[i].prog_def->ignore_on_eng && isEng()) ||
+            (cs[i].prog_def->ignore_on_user && isUser()) ||
+            (cs[i].prog_def->ignore_on_userdebug && isUserdebug())) {
+            ALOGD("cs[%d].name:%s is ignored on %s builds", i, name.c_str(),
+                  getBuildType().c_str());
+        }
+
         if (unrecognized(pin_subdir)) return -ENOTDIR;
 
         if (specified(selinux_context)) {
