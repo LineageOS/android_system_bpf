@@ -20,6 +20,8 @@
 #include <libbpf.h>
 #include <linux/bpf.h>
 
+#include <fstream>
+
 namespace android {
 namespace bpf {
 
@@ -91,6 +93,20 @@ int loadProg(const char* elfPath, bool* isCritical, const Location &location = {
 
 // Exposed for testing
 unsigned int readSectionUint(const char* name, std::ifstream& elfFile, unsigned int defVal);
+
+// Returns the build type string (from ro.build.type).
+const std::string& getBuildType();
+
+// The following functions classify the 3 Android build types.
+inline bool isEng() {
+    return getBuildType() == "eng";
+}
+inline bool isUser() {
+    return getBuildType() == "user";
+}
+inline bool isUserdebug() {
+    return getBuildType() == "userdebug";
+}
 
 }  // namespace bpf
 }  // namespace android
