@@ -20,6 +20,8 @@
 #include <libbpf.h>
 #include <linux/bpf.h>
 
+#include <fstream>
+
 namespace android {
 namespace bpf {
 
