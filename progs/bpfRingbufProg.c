@@ -21,7 +21,8 @@
 #define TEST_RINGBUF_MAGIC_NUM 12345
 
 // This ring buffer is for testing purposes only.
-DEFINE_BPF_RINGBUF_EXT(test_ringbuf, __u64, 4096, AID_ROOT, AID_ROOT, 0660, "", "", false);
+DEFINE_BPF_RINGBUF_EXT(test_ringbuf, __u64, 4096, AID_ROOT, AID_ROOT, 0660, "", "", false,
+                       BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, false, false, false);
 
 // This program is for test purposes only - it should never be attached to a
 // socket, only executed manually with BPF_PROG_RUN.
