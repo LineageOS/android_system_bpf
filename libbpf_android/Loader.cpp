@@ -30,9 +30,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.32
+// This is BpfLoader v0.33
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 32u
+#define BPFLOADER_VERSION_MINOR 33u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "BpfSyscallWrappers.h"
@@ -1038,6 +1038,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             (cs[i].prog_def->ignore_on_userdebug && isUserdebug())) {
             ALOGD("cs[%d].name:%s is ignored on %s builds", i, name.c_str(),
                   getBuildType().c_str());
+            continue;
         }
 
         if (unrecognized(pin_subdir)) return -ENOTDIR;
