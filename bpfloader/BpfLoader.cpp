@@ -90,9 +90,11 @@ constexpr unsigned long long kTetheringApexDomainBitmask =
 // as KPROBE, PERF_EVENT, TRACEPOINT are dangerous to use from mainline updatable code,
 // since they are less stable abi/api and may conflict with platform uses of bpf.
 constexpr bpf_prog_type kTetheringApexAllowedProgTypes[] = {
-        BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
         BPF_PROG_TYPE_CGROUP_SKB,
         BPF_PROG_TYPE_CGROUP_SOCK,
+        BPF_PROG_TYPE_CGROUP_SOCKOPT,
+        BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
+        BPF_PROG_TYPE_CGROUP_SYSCTL,
         BPF_PROG_TYPE_SCHED_ACT,
         BPF_PROG_TYPE_SCHED_CLS,
         BPF_PROG_TYPE_SOCKET_FILTER,
