@@ -17,6 +17,7 @@
 #define LOG_TAG "LibBpfLoader"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <linux/bpf.h>
 #include <linux/elf.h>
 #include <log/log.h>
@@ -901,7 +902,8 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                     ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
                     return -err;
                 }
-                ret = rename(createLoc.c_str(), mapPinLoc.c_str());
+                ret = renameat2(AT_FDCWD, createLoc.c_str(),
+                                AT_FDCWD, mapPinLoc.c_str(), RENAME_NOREPLACE);
                 if (ret) {
                     int err = errno;
                     ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), mapPinLoc.c_str(), ret,
@@ -1153,7 +1155,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                     ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
                     return -err;
                 }
-                ret = rename(createLoc.c_str(), progPinLoc.c_str());
+                ret = renameat2(AT_FDCWD, createLoc.c_str(),
+                                AT_FDCWD, progPinLoc.c_str(), RENAME_NOREPLACE);
                 if (ret) {
                     int err = errno;
                     ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), progPinLoc.c_str(), ret,
