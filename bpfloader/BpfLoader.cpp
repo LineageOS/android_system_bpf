@@ -289,8 +289,7 @@ int main(int argc, char** argv) {
     // Enable JIT kallsyms export for privileged users only
     // (Note: this (open) will fail with ENOENT 'No such file or directory' if
     //  kernel does not have CONFIG_HAVE_EBPF_JIT=y)
-    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n") &&
-        android::bpf::isAtLeastKernelVersion(5, 4, 0)) return 1;
+    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
 
     // This is ugly... but this allows InProcessTethering which runs as system_server,
     // instead of as network_stack to access /sys/fs/bpf/tethering, which would otherwise
