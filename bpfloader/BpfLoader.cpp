@@ -66,19 +66,6 @@ bool exists(const char* const path) {
     abort();  // can only hit this if permissions (likely selinux) are screwed up
 }
 
-bool isInProcessTethering() {
-    bool in = exists("/apex/com.android.tethering/etc/flag/in-process");
-    bool out = exists("/apex/com.android.tethering/etc/flag/out-of-process");
-    if (in && out) abort();  // bad build
-
-    // Handle cases where the module explicitly tells us
-    if (in) return true;
-    if (out) return false;
-
-    ALOGE("FATAL: cannot determine if Tethering is in or out of process.");
-    abort();
-}
-
 constexpr unsigned long long kTetheringApexDomainBitmask =
         domainToBitmask(domain::tethering) |
         domainToBitmask(domain::net_private) |
@@ -271,6 +258,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Tethering mainline module must provide this or U bpfloader will fail to boot.
+    if (!exists("/apex/com.android.tethering/etc/flag/out-of-process")) return 1;
+
     // Linux 5.16-rc1 changed the default to 2 (disabled but changeable), but we need 0 (enabled)
     // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on pre-5.13,
     // on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
@@ -291,21 +281,6 @@ int main(int argc, char** argv) {
     //  kernel does not have CONFIG_HAVE_EBPF_JIT=y)
     if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n") &&
         android::bpf::isAtLeastKernelVersion(5, 4, 0)) return 1;
-
-    // This is ugly... but this allows InProcessTethering which runs as system_server,
-    // instead of as network_stack to access /sys/fs/bpf/tethering, which would otherwise
-    // (due to genfscon rules) have fs_bpf_tethering selinux context, which is restricted
-    // to the network_stack process only (which is where out of process tethering runs)
-    if (isInProcessTethering() && !exists("/sys/fs/bpf/tethering")) {
-        if (createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared")) return 1;
-        if (createSysFsBpfSubDir(/* /sys/fs/bpf/ */ "net_shared/tethering")) return 1;
-
-        /* /sys/fs/bpf/tethering -> net_shared/tethering */
-        if (symlink("net_shared/tethering", "/sys/fs/bpf/tethering")) {
-            ALOGE("symlink(net_shared/tethering, /sys/fs/bpf/tethering) -> %s", strerror(errno));
-            return 1;
-        }
-    }
 
     // Create all the pin subdirectories
     // (this must be done first to allow selinux_context and pin_subdir functionality,
