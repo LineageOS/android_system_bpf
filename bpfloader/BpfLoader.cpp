@@ -258,9 +258,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Tethering mainline module must provide this or U bpfloader will fail to boot.
-    if (!exists("/apex/com.android.tethering/etc/flag/out-of-process")) return 1;
-
     // Linux 5.16-rc1 changed the default to 2 (disabled but changeable), but we need 0 (enabled)
     // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on pre-5.13,
     // on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
