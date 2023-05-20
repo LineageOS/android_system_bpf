@@ -31,13 +31,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.37
+// This is BpfLoader v0.38
 // WARNING: If you ever hit cherrypick conflicts here you're doing it wrong:
 // You are NOT allowed to cherrypick bpfloader related patches out of order.
 // (indeed: cherrypicking is probably a bad idea and you should merge instead)
 // Mainline supports ONLY the published versions of the bpfloader for each Android release.
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 37u
+#define BPFLOADER_VERSION_MINOR 38u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "BpfSyscallWrappers.h"
@@ -816,6 +816,17 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             continue;
         }
 
+        if ((isArm() && isKernel32Bit() && md[i].ignore_on_arm32) ||
+            (isArm() && isKernel64Bit() && md[i].ignore_on_aarch64) ||
+            (isX86() && isKernel32Bit() && md[i].ignore_on_x86_32) ||
+            (isX86() && isKernel64Bit() && md[i].ignore_on_x86_64) ||
+            (isRiscV() && md[i].ignore_on_riscv64)) {
+            ALOGI("skipping map %s which is ignored on %s", mapNames[i].c_str(),
+                  describeArch());
+            mapFds.push_back(unique_fd());
+            continue;
+        }
+
         enum bpf_map_type type = md[i].type;
         if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
             // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
@@ -1068,6 +1079,15 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             (cs[i].prog_def->ignore_on_userdebug && isUserdebug())) {
             ALOGD("cs[%d].name:%s is ignored on %s builds", i, name.c_str(),
                   getBuildType().c_str());
+            continue;
+        }
+
+        if ((isArm() && isKernel32Bit() && cs[i].prog_def->ignore_on_arm32) ||
+            (isArm() && isKernel64Bit() && cs[i].prog_def->ignore_on_aarch64) ||
+            (isX86() && isKernel32Bit() && cs[i].prog_def->ignore_on_x86_32) ||
+            (isX86() && isKernel64Bit() && cs[i].prog_def->ignore_on_x86_64) ||
+            (isRiscV() && cs[i].prog_def->ignore_on_riscv64)) {
+            ALOGD("cs[%d].name:%s is ignored on %s", i, name.c_str(), describeArch());
             continue;
         }
 
