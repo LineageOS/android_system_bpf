@@ -31,13 +31,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.38
+// This is BpfLoader v0.39
 // WARNING: If you ever hit cherrypick conflicts here you're doing it wrong:
 // You are NOT allowed to cherrypick bpfloader related patches out of order.
 // (indeed: cherrypicking is probably a bad idea and you should merge instead)
 // Mainline supports ONLY the published versions of the bpfloader for each Android release.
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 38u
+#define BPFLOADER_VERSION_MINOR 39u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "BpfSyscallWrappers.h"
@@ -767,7 +767,10 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
 
-    unsigned btfMinBpfLoaderVer = readSectionUint("btf_min_bpfloader_ver", elfFile, 0);
+    // BpfLoader before v0.39 unconditionally check only 'btf_min_bpfloader_ver'
+    unsigned btfMinBpfLoaderVer = readSectionUint(
+        isUser() ? "btf_user_min_bpfloader_ver" : "btf_min_bpfloader_ver", elfFile, 0);
+
     unsigned btfMinKernelVer = readSectionUint("btf_min_kernel_ver", elfFile, 0);
     unsigned kvers = kernelVersion();
 
