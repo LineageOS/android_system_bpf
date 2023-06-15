@@ -36,7 +36,6 @@ cc_binary {
     ],
     sanitize: {
         integer_overflow: true,
-        memtag_heap: true,
     },
 
     header_libs: ["bpf_headers"],
