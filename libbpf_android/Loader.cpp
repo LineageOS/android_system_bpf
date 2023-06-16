@@ -31,13 +31,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.39
+// This is BpfLoader v0.40
 // WARNING: If you ever hit cherrypick conflicts here you're doing it wrong:
 // You are NOT allowed to cherrypick bpfloader related patches out of order.
 // (indeed: cherrypicking is probably a bad idea and you should merge instead)
 // Mainline supports ONLY the published versions of the bpfloader for each Android release.
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 39u
+#define BPFLOADER_VERSION_MINOR 40u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "BpfSyscallWrappers.h"
@@ -94,6 +94,8 @@ const std::string& getBuildType() {
     static std::string t = getBuildTypeInternal();
     return t;
 }
+
+static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
 constexpr const char* lookupSelinuxContext(const domain d, const char* const unspecified = "") {
     switch (d) {
@@ -705,6 +707,11 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
     if (type == BPF_MAP_TYPE_DEVMAP || type == BPF_MAP_TYPE_DEVMAP_HASH)
         desired_map_flags |= BPF_F_RDONLY_PROG;
 
+    unsigned int desired_max_entries = mapDef.max_entries;
+    if (type == BPF_MAP_TYPE_RINGBUF) {
+        if (desired_max_entries < page_size) desired_max_entries = page_size;
+    }
+
     // The following checks should *never* trigger, if one of them somehow does,
     // it probably means a bpf .o file has been changed/replaced at runtime
     // and bpfloader was manually rerun (normally it should only run *once*
@@ -715,7 +722,7 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
     if ((fd_type == type) &&
         (fd_key_size == (int)mapDef.key_size) &&
         (fd_value_size == (int)mapDef.value_size) &&
-        (fd_max_entries == (int)mapDef.max_entries) &&
+        (fd_max_entries == (int)desired_max_entries) &&
         (fd_map_flags == desired_map_flags)) {
         return true;
     }
@@ -842,6 +849,11 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             type = BPF_MAP_TYPE_HASH;
         }
 
+        unsigned int max_entries = md[i].max_entries;
+        if (type == BPF_MAP_TYPE_RINGBUF) {
+            if (max_entries < page_size) max_entries = page_size;
+        }
+
         domain selinux_context = getDomainFromSelinuxContext(md[i].selinux_context);
         if (specified(selinux_context)) {
             if (!inDomainBitmask(selinux_context, allowedDomainBitmask)) {
@@ -887,7 +899,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                 .map_flags = md[i].map_flags,
                 .key_size = md[i].key_size,
                 .value_size = md[i].value_size,
-                .max_entries = md[i].max_entries,
+                .max_entries = max_entries,
             };
             if (btfFd.has_value() && btfTypeIdMap.find(mapNames[i]) != btfTypeIdMap.end()) {
                 attr.btf_fd = btfFd->get();
