@@ -707,6 +707,9 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
     if (type == BPF_MAP_TYPE_DEVMAP || type == BPF_MAP_TYPE_DEVMAP_HASH)
         desired_map_flags |= BPF_F_RDONLY_PROG;
 
+    // The .h file enforces that this is a power of two, and page size will
+    // also always be a power of two, so this logic is actually enough to
+    // force it to be a multiple of the page size, as required by the kernel.
     unsigned int desired_max_entries = mapDef.max_entries;
     if (type == BPF_MAP_TYPE_RINGBUF) {
         if (desired_max_entries < page_size) desired_max_entries = page_size;
@@ -849,6 +852,9 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             type = BPF_MAP_TYPE_HASH;
         }
 
+        // The .h file enforces that this is a power of two, and page size will
+        // also always be a power of two, so this logic is actually enough to
+        // force it to be a multiple of the page size, as required by the kernel.
         unsigned int max_entries = md[i].max_entries;
         if (type == BPF_MAP_TYPE_RINGBUF) {
             if (max_entries < page_size) max_entries = page_size;
