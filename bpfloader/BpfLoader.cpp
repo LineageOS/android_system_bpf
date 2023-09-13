@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
     if (!android::bpf::isAtLeastKernelVersion(4, 19, 0)) {
-        ALOGE("Android V requires kernel 4.19.");
+        ALOGE("Android U QPR2 requires kernel 4.19.");
         return 1;
     }
 
