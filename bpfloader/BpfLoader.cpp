@@ -251,6 +251,11 @@ int main(int argc, char** argv) {
     (void)argc;
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
+    if (!android::bpf::isAtLeastKernelVersion(4, 19, 0)) {
+        ALOGE("Android V requires kernel 4.19.");
+        return 1;
+    }
+
     // Ensure we can determine the Android build type.
     if (!android::bpf::isEng() && !android::bpf::isUser() && !android::bpf::isUserdebug()) {
         ALOGE("Failed to determine the build type: got %s, want 'eng', 'user', or 'userdebug'",
