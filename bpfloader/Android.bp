@@ -45,7 +45,6 @@ cc_binary {
         "libbase",
         "liblog",
         "libnetdutils",
-        "libbpf_bcc",
     ],
     srcs: [
         "BpfLoader.cpp",
@@ -54,7 +53,6 @@ cc_binary {
     init_rc: ["bpfloader.rc"],
 
     required: [
-        "btfloader",
         "timeInState.o"
     ],
 
