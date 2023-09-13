@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <libbpf.h>
 #include <linux/bpf.h>
 
 #include <fstream>
