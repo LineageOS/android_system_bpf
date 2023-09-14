@@ -256,6 +256,30 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (android::bpf::isUserspace32bit() && android::bpf::isAtLeastKernelVersion(6, 2, 0)) {
+        /* Android 14/U should only launch on 64-bit kernels
+         *   T launches on 5.10/5.15
+         *   U launches on 5.15/6.1
+         * So >=5.16 implies isKernel64Bit()
+         *
+         * We thus added a test to V VTS which requires 5.16+ devices to use 64-bit kernels.
+         *
+         * Starting with Android V, which is the first to support a post 6.1 Linux Kernel,
+         * we also require 64-bit userspace.
+         *
+         * There are various known issues with 32-bit userspace talking to various
+         * kernel interfaces (especially CAP_NET_ADMIN ones) on a 64-bit kernel.
+         * Some of these have userspace or kernel workarounds/hacks.
+         * Some of them don't...
+         * We're going to be removing the hacks.
+         *
+         * Additionally the 32-bit kernel jit support is poor,
+         * and 32-bit userspace on 64-bit kernel bpf ringbuffer compatibility is broken.
+         */
+        ALOGE("64-bit userspace required on 6.2+ kernels.");
+        return 1;
+    }
+
     // Ensure we can determine the Android build type.
     if (!android::bpf::isEng() && !android::bpf::isUser() && !android::bpf::isUserdebug()) {
         ALOGE("Failed to determine the build type: got %s, want 'eng', 'user', or 'userdebug'",
