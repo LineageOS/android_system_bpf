@@ -31,13 +31,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.40
+// This is BpfLoader v0.41
 // WARNING: If you ever hit cherrypick conflicts here you're doing it wrong:
 // You are NOT allowed to cherrypick bpfloader related patches out of order.
 // (indeed: cherrypicking is probably a bad idea and you should merge instead)
 // Mainline supports ONLY the published versions of the bpfloader for each Android release.
 #define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 40u
+#define BPFLOADER_VERSION_MINOR 41u
 #define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
 
 #include "BpfSyscallWrappers.h"
@@ -48,8 +48,6 @@
 #if BPFLOADER_VERSION < COMPILE_FOR_BPFLOADER_VERSION
 #error "BPFLOADER_VERSION is less than COMPILE_FOR_BPFLOADER_VERSION"
 #endif
-
-#include <bpf/bpf.h>
 
 #include <cstdlib>
 #include <fstream>
@@ -614,81 +612,6 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
     return getSymName(elfFile, symtab[index].st_name, name);
 }
 
-static bool waitpidTimeout(pid_t pid, int timeoutMs) {
-    // Add SIGCHLD to the signal set.
-    sigset_t child_mask, original_mask;
-    sigemptyset(&child_mask);
-    sigaddset(&child_mask, SIGCHLD);
-    if (sigprocmask(SIG_BLOCK, &child_mask, &original_mask) == -1) return false;
-
-    // Wait for a SIGCHLD notification.
-    errno = 0;
-    timespec ts = {0, timeoutMs * 1000000};
-    int wait_result = TEMP_FAILURE_RETRY(sigtimedwait(&child_mask, nullptr, &ts));
-
-    // Restore the original signal set.
-    sigprocmask(SIG_SETMASK, &original_mask, nullptr);
-
-    if (wait_result == -1) return false;
-
-    int status;
-    return TEMP_FAILURE_RETRY(waitpid(pid, &status, WNOHANG)) == pid;
-}
-
-static std::optional<unique_fd> getMapBtfInfo(const char* elfPath,
-                         std::unordered_map<string, std::pair<uint32_t, uint32_t>> &btfTypeIds) {
-    unique_fd bpfloaderSocket, btfloaderSocket;
-    if (!android::base::Socketpair(AF_UNIX, SOCK_DGRAM | SOCK_NONBLOCK, 0, &bpfloaderSocket,
-                                   &btfloaderSocket)) {
-        return {};
-    }
-
-    unique_fd pipeRead, pipeWrite;
-    if (!android::base::Pipe(&pipeRead, &pipeWrite, O_NONBLOCK)) {
-        return {};
-    }
-
-    pid_t pid = fork();
-    if (pid < 0) return {};
-    if (!pid) {
-        bpfloaderSocket.reset();
-        pipeRead.reset();
-        auto socketFdStr = std::to_string(btfloaderSocket.release());
-        auto pipeFdStr = std::to_string(pipeWrite.release());
-
-        if (execl("/system/bin/btfloader", "/system/bin/btfloader", socketFdStr.c_str(),
-                  pipeFdStr.c_str(), elfPath, NULL) == -1) {
-            ALOGW("exec btfloader failed with errno %d (%s)", errno, strerror(errno));
-            exit(EX_UNAVAILABLE);
-        }
-    }
-    btfloaderSocket.reset();
-    pipeWrite.reset();
-    if (!waitpidTimeout(pid, 100)) {
-        kill(pid, SIGKILL);
-        return {};
-    }
-
-    unique_fd btfFd;
-    if (android::base::ReceiveFileDescriptors(bpfloaderSocket, nullptr, 0, &btfFd)) return {};
-
-    std::string btfTypeIdStr;
-    if (!android::base::ReadFdToString(pipeRead, &btfTypeIdStr)) return {};
-    if (!btfFd.ok()) return {};
-
-    const auto mapTypeIdLines = android::base::Split(btfTypeIdStr, "\n");
-    for (const auto &line : mapTypeIdLines) {
-        const auto vec = android::base::Split(line, " ");
-        // Splitting on newline will give us one empty line
-        if (vec.size() != 3) continue;
-        const int kTid = atoi(vec[1].c_str());
-        const int vTid = atoi(vec[2].c_str());
-        if (!kTid || !vTid) return {};
-        btfTypeIds[vec[0]] = std::make_pair(kTid, vTid);
-    }
-    return btfFd;
-}
-
 static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
                                    const struct bpf_map_def& mapDef, const enum bpf_map_type type) {
     // Assuming fd is a valid Bpf Map file descriptor then
@@ -741,10 +664,9 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                       const char* prefix, const unsigned long long allowedDomainBitmask,
                       const size_t sizeOfBpfMapDef) {
     int ret;
-    vector<char> mdData, btfData;
+    vector<char> mdData;
     vector<struct bpf_map_def> md;
     vector<string> mapNames;
-    std::unordered_map<string, std::pair<uint32_t, uint32_t>> btfTypeIdMap;
     string objName = pathToObjName(string(elfPath));
 
     ret = readSectionByName("maps", elfFile, mdData);
@@ -777,18 +699,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
 
-    // BpfLoader before v0.39 unconditionally check only 'btf_min_bpfloader_ver'
-    unsigned btfMinBpfLoaderVer = readSectionUint(
-        isUser() ? "btf_user_min_bpfloader_ver" : "btf_min_bpfloader_ver", elfFile, 0);
-
-    unsigned btfMinKernelVer = readSectionUint("btf_min_kernel_ver", elfFile, 0);
     unsigned kvers = kernelVersion();
-
-    std::optional<unique_fd> btfFd;
-    if ((BPFLOADER_VERSION >= btfMinBpfLoaderVer) && (kvers >= btfMinKernelVer) &&
-        (!readSectionByName(".BTF", elfFile, btfData))) {
-        btfFd = getMapBtfInfo(elfPath, btfTypeIdMap);
-    }
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (md[i].zero != 0) abort();
@@ -899,20 +810,15 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
             reuse = true;
         } else {
-            struct bpf_create_map_attr attr = {
-                .name = mapNames[i].c_str(),
-                .map_type = type,
-                .map_flags = md[i].map_flags,
-                .key_size = md[i].key_size,
-                .value_size = md[i].value_size,
-                .max_entries = max_entries,
+            union bpf_attr req = {
+              .map_type = type,
+              .key_size = md[i].key_size,
+              .value_size = md[i].value_size,
+              .max_entries = max_entries,
+              .map_flags = md[i].map_flags,
             };
-            if (btfFd.has_value() && btfTypeIdMap.find(mapNames[i]) != btfTypeIdMap.end()) {
-                attr.btf_fd = btfFd->get();
-                attr.btf_key_type_id = btfTypeIdMap.at(mapNames[i]).first;
-                attr.btf_value_type_id = btfTypeIdMap.at(mapNames[i]).second;
-            }
-            fd.reset(bcc_create_map_xattr(&attr, true));
+            strlcpy(req.map_name, mapNames[i].c_str(), sizeof(req.map_name));
+            fd.reset(bpf(BPF_MAP_CREATE, req));
             saved_errno = errno;
             ALOGD("bpf_create_map name %s, ret: %d", mapNames[i].c_str(), fd.get());
         }
@@ -928,7 +834,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             if (specified(selinux_context)) {
                 string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
                                    "tmp_map_" + objName + "_" + mapNames[i];
-                ret = bpf_obj_pin(fd, createLoc.c_str());
+                ret = bpfFdPin(fd, createLoc.c_str());
                 if (ret) {
                     int err = errno;
                     ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
@@ -943,7 +849,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                     return -err;
                 }
             } else {
-                ret = bpf_obj_pin(fd, mapPinLoc.c_str());
+                ret = bpfFdPin(fd, mapPinLoc.c_str());
                 if (ret) {
                     int err = errno;
                     ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
@@ -966,13 +872,11 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             }
         }
 
-        struct bpf_map_info map_info = {};
-        __u32 map_info_len = sizeof(map_info);
-        int rv = bpf_obj_get_info_by_fd(fd, &map_info, &map_info_len);
-        if (rv) {
-            ALOGE("bpf_obj_get_info_by_fd failed, ret: %d [%d]", rv, errno);
+        int mapId = bpfGetFdMapId(fd);
+        if (mapId == -1) {
+            ALOGE("bpfGetFdMapId failed, ret: %d [%d]", mapId, errno);
         } else {
-            ALOGI("map %s id %d", mapPinLoc.c_str(), map_info.id);
+            ALOGI("map %s id %d", mapPinLoc.c_str(), mapId);
         }
 
         mapFds.push_back(std::move(fd));
@@ -1059,7 +963,6 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
                             const char* prefix, const unsigned long long allowedDomainBitmask) {
     unsigned kvers = kernelVersion();
-    int ret, fd;
 
     if (!kvers) {
         ALOGE("unable to get kernel version");
@@ -1069,6 +972,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
+        unique_fd& fd = cs[i].prog_fd;
+        int ret;
         string name = cs[i].name;
 
         if (!cs[i].prog_def.has_value()) {
@@ -1146,34 +1051,36 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         string progPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "prog_" +
                             objName + '_' + string(name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
-            fd = retrieveProgram(progPinLoc.c_str());
-            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd,
-                  (fd < 0 ? std::strerror(errno) : "no error"));
+            fd.reset(retrieveProgram(progPinLoc.c_str()));
+            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
+                  (!fd.ok() ? std::strerror(errno) : "no error"));
             reuse = true;
         } else {
             vector<char> log_buf(BPF_LOAD_LOG_SZ, 0);
 
-            struct bpf_load_program_attr attr = {
-                .prog_type = cs[i].type,
-                .name = name.c_str(),
-                .insns = (struct bpf_insn*)cs[i].data.data(),
-                .license = license.c_str(),
-                .log_level = 0,
-                .expected_attach_type = cs[i].expected_attach_type,
+            union bpf_attr req = {
+              .prog_type = cs[i].type,
+              .kern_version = kvers,
+              .license = ptr_to_u64(license.c_str()),
+              .insns = ptr_to_u64(cs[i].data.data()),
+              .insn_cnt = static_cast<__u32>(cs[i].data.size() / sizeof(struct bpf_insn)),
+              .log_level = 1,
+              .log_buf = ptr_to_u64(log_buf.data()),
+              .log_size = static_cast<__u32>(log_buf.size()),
+              .expected_attach_type = cs[i].expected_attach_type,
             };
+            strlcpy(req.prog_name, cs[i].name.c_str(), sizeof(req.prog_name));
+            fd.reset(bpf(BPF_PROG_LOAD, req));
 
-            fd = bcc_prog_load_xattr(&attr, cs[i].data.size(), log_buf.data(), log_buf.size(),
-                    true);
+            ALOGD("BPF_PROG_LOAD call for %s (%s) returned fd: %d (%s)", elfPath,
+                  cs[i].name.c_str(), fd.get(), (!fd.ok() ? std::strerror(errno) : "no error"));
 
-            ALOGD("bpf_prog_load lib call for %s (%s) returned fd: %d (%s)", elfPath,
-                  cs[i].name.c_str(), fd, (fd < 0 ? std::strerror(errno) : "no error"));
-
-            if (fd < 0) {
+            if (!fd.ok()) {
                 vector<string> lines = android::base::Split(log_buf.data(), "\n");
 
-                ALOGW("bpf_prog_load - BEGIN log_buf contents:");
+                ALOGW("BPF_PROG_LOAD - BEGIN log_buf contents:");
                 for (const auto& line : lines) ALOGW("%s", line.c_str());
-                ALOGW("bpf_prog_load - END log_buf contents.");
+                ALOGW("BPF_PROG_LOAD - END log_buf contents.");
 
                 if (cs[i].prog_def->optional) {
                     ALOGW("failed program is marked optional - continuing...");
@@ -1183,14 +1090,13 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             }
         }
 
-        if (fd < 0) return fd;
-        if (fd == 0) return -EINVAL;
+        if (!fd.ok()) return fd.get();
 
         if (!reuse) {
             if (specified(selinux_context)) {
                 string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
                                    "tmp_prog_" + objName + '_' + string(name);
-                ret = bpf_obj_pin(fd, createLoc.c_str());
+                ret = bpfFdPin(fd, createLoc.c_str());
                 if (ret) {
                     int err = errno;
                     ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
@@ -1205,7 +1111,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                     return -err;
                 }
             } else {
-                ret = bpf_obj_pin(fd, progPinLoc.c_str());
+                ret = bpfFdPin(fd, progPinLoc.c_str());
                 if (ret) {
                     int err = errno;
                     ALOGE("create %s -> %d [%d:%s]", progPinLoc.c_str(), ret, err, strerror(err));
@@ -1226,16 +1132,12 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             }
         }
 
-        struct bpf_prog_info prog_info = {};
-        __u32 prog_info_len = sizeof(prog_info);
-        int rv = bpf_obj_get_info_by_fd(fd, &prog_info, &prog_info_len);
-        if (rv) {
-            ALOGE("bpf_obj_get_info_by_fd failed, ret: %d [%d]", rv, errno);
+        int progId = bpfGetFdProgId(fd);
+        if (progId == -1) {
+            ALOGE("bpfGetFdProgId failed, ret: %d [%d]", progId, errno);
         } else {
-            ALOGI("prog %s id %d", progPinLoc.c_str(), prog_info.id);
+            ALOGI("prog %s id %d", progPinLoc.c_str(), progId);
         }
-
-        cs[i].prog_fd.reset(fd);
     }
 
     return 0;
