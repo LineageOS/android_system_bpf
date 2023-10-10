@@ -51,7 +51,8 @@ cc_binary {
     init_rc: ["bpfloader.rc"],
 
     required: [
-        "timeInState.o"
+        "netbpfload",
+        "timeInState.o",
     ],
 
     product_variables: {
