@@ -46,8 +46,6 @@
 #include <android-base/unique_fd.h>
 #include <libbpf_android.h>
 #include <log/log.h>
-#include <netdutils/Misc.h>
-#include <netdutils/Slice.h>
 #include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 
