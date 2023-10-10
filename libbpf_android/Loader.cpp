@@ -59,9 +59,9 @@
 
 #include <android-base/cmsg.h>
 #include <android-base/file.h>
+#include <android-base/properties.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
-#include <cutils/properties.h>
 
 #define BPF_FS_PATH "/sys/fs/bpf/"
 
@@ -79,17 +79,11 @@ using std::optional;
 using std::string;
 using std::vector;
 
-static std::string getBuildTypeInternal() {
-    char value[PROPERTY_VALUE_MAX] = {};
-    (void)property_get("ro.build.type", value, "unknown");  // ignore length
-    return value;
-}
-
 namespace android {
 namespace bpf {
 
 const std::string& getBuildType() {
-    static std::string t = getBuildTypeInternal();
+    static std::string t = android::base::GetProperty("ro.build.type", "unknown");
     return t;
 }
 
