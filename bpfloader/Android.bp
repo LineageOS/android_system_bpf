@@ -40,11 +40,10 @@ cc_binary {
 
     header_libs: ["bpf_headers"],
     shared_libs: [
-        "libcutils",
-        "libbpf_android",
         "libbase",
+        "libbpf_android",
+        "libcutils",
         "liblog",
-        "libnetdutils",
     ],
     srcs: [
         "BpfLoader.cpp",
