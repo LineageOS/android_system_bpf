@@ -16,6 +16,7 @@
 #
 on load_bpf_programs
     exec_start bpfloader
+    exec_start netbpfload
 
 service bpfloader /system/bin/bpfloader
     capabilities CHOWN SYS_ADMIN
@@ -81,4 +82,15 @@ service bpfloader /system/bin/bpfloader
     #
     reboot_on_failure reboot,bpfloader-failed
     # we're not really updatable, but want to be able to load bpf programs shipped in apexes
+    updatable
+
+# Note: comments for 'bpfloader' from up above also apply here.
+# Use: adb logcat -s 'NetBpfLoad:*' 'NetBpfLoader:*'
+service netbpfload /system/bin/netbpfload
+    capabilities CHOWN SYS_ADMIN NET_ADMIN
+    group root network_stack net_admin net_bw_acct net_bw_stats net_raw system
+    user root
+    rlimit memlock 1073741824 1073741824
+    oneshot
+    reboot_on_failure reboot,netbpfload-failed
     updatable
