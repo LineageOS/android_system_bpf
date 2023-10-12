@@ -16,15 +16,16 @@
 #
 on load_bpf_programs
     exec_start bpfloader
+    exec_start netbpfload
 
 service bpfloader /system/bin/bpfloader
-    capabilities CHOWN SYS_ADMIN NET_ADMIN
+    capabilities CHOWN SYS_ADMIN
     # The following group memberships are a workaround for lack of DAC_OVERRIDE
     # and allow us to open (among other things) files that we created and are
     # no longer root owned (due to CHOWN) but still have group read access to
     # one of the following groups.  This is not perfect, but a more correct
     # solution requires significantly more effort to implement.
-    group root graphics network_stack net_admin net_bw_acct net_bw_stats net_raw system
+    group root graphics system
     user root
     #
     # Set RLIMIT_MEMLOCK to 1GiB for bpfloader
@@ -36,9 +37,8 @@ service bpfloader /system/bin/bpfloader
     # memlock data before bpfloader even gets a chance to run, it would fail
     # if its memlock rlimit is only 8MiB - since there would be none left for it.
     #
-    # bpfloader succeeding is critical to system health, since a failure will
-    # cause netd crashloop and thus system server crashloop... and the only
-    # recovery is a full kernel reboot.
+    # bpfloader succeeding is critical to system health:
+    # the only way to recover is a full kernel reboot.
     #
     # We've had issues where devices would sometimes (rarely) boot into
     # a crashloop because bpfloader would occasionally lose a boot time
@@ -82,4 +82,15 @@ service bpfloader /system/bin/bpfloader
     #
     reboot_on_failure reboot,bpfloader-failed
     # we're not really updatable, but want to be able to load bpf programs shipped in apexes
+    updatable
+
+# Note: comments for 'bpfloader' from up above also apply here.
+# Use: adb logcat -s 'NetBpfLoad:*' 'NetBpfLoader:*'
+service netbpfload /system/bin/netbpfload
+    capabilities CHOWN SYS_ADMIN NET_ADMIN
+    group root network_stack net_admin net_bw_acct net_bw_stats net_raw system
+    user root
+    rlimit memlock 1073741824 1073741824
+    oneshot
+    reboot_on_failure reboot,netbpfload-failed
     updatable
