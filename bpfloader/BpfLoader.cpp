@@ -76,6 +76,10 @@ constexpr bpf_prog_type kPlatformAllowedProgTypes[] = {
         BPF_PROG_TYPE_UNSPEC,  // Will be replaced with fuse bpf program type
 };
 
+constexpr bpf_prog_type kUprobestatsAllowedProgTypes[] = {
+        BPF_PROG_TYPE_KPROBE,
+};
+
 // see b/162057235. For arbitrary program types, the concern is that due to the lack of
 // SELinux access controls over BPF program attachpoints, we have no way to control the
 // attachment of programs to shared resources (or to detect when a shared resource
@@ -83,7 +87,6 @@ constexpr bpf_prog_type kPlatformAllowedProgTypes[] = {
 constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
         BPF_PROG_TYPE_SOCKET_FILTER,
 };
-
 
 const android::bpf::Location locations[] = {
         // Core operating system
@@ -93,6 +96,14 @@ const android::bpf::Location locations[] = {
                 .allowedDomainBitmask = domainToBitmask(domain::platform),
                 .allowedProgTypes = kPlatformAllowedProgTypes,
                 .allowedProgTypesLength = arraysize(kPlatformAllowedProgTypes),
+        },
+        // uprobestats
+        {
+                .dir = "/system/etc/bpf/uprobestats/",
+                .prefix = "uprobestats/",
+                .allowedDomainBitmask = domainToBitmask(domain::platform),
+                .allowedProgTypes = kUprobestatsAllowedProgTypes,
+                .allowedProgTypesLength = arraysize(kUprobestatsAllowedProgTypes),
         },
         // Vendor operating system
         {
