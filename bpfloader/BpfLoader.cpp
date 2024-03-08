@@ -46,8 +46,6 @@
 #include <android-base/unique_fd.h>
 #include <libbpf_android.h>
 #include <log/log.h>
-#include <netdutils/Misc.h>
-#include <netdutils/Slice.h>
 #include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 
@@ -65,33 +63,6 @@ bool exists(const char* const path) {
     ALOGE("FATAL: access(%s, F_OK) -> %d [%d:%s]", path, v, errno, strerror(errno));
     abort();  // can only hit this if permissions (likely selinux) are screwed up
 }
-
-constexpr unsigned long long kTetheringApexDomainBitmask =
-        domainToBitmask(domain::tethering) |
-        domainToBitmask(domain::net_private) |
-        domainToBitmask(domain::net_shared) |
-        domainToBitmask(domain::netd_readonly) |
-        domainToBitmask(domain::netd_shared);
-
-// Programs shipped inside the tethering apex should be limited to networking stuff,
-// as KPROBE, PERF_EVENT, TRACEPOINT are dangerous to use from mainline updatable code,
-// since they are less stable abi/api and may conflict with platform uses of bpf.
-constexpr bpf_prog_type kTetheringApexAllowedProgTypes[] = {
-        BPF_PROG_TYPE_CGROUP_SKB,
-        BPF_PROG_TYPE_CGROUP_SOCK,
-        BPF_PROG_TYPE_CGROUP_SOCKOPT,
-        BPF_PROG_TYPE_CGROUP_SOCK_ADDR,
-        BPF_PROG_TYPE_CGROUP_SYSCTL,
-        BPF_PROG_TYPE_LWT_IN,
-        BPF_PROG_TYPE_LWT_OUT,
-        BPF_PROG_TYPE_LWT_SEG6LOCAL,
-        BPF_PROG_TYPE_LWT_XMIT,
-        BPF_PROG_TYPE_SCHED_ACT,
-        BPF_PROG_TYPE_SCHED_CLS,
-        BPF_PROG_TYPE_SOCKET_FILTER,
-        BPF_PROG_TYPE_SOCK_OPS,
-        BPF_PROG_TYPE_XDP,
-};
 
 // Networking-related program types are limited to the Tethering Apex
 // to prevent things from breaking due to conflicts on mainline updates
@@ -115,48 +86,6 @@ constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
 
 
 const android::bpf::Location locations[] = {
-        // S+ Tethering mainline module (network_stack): tether offload
-        {
-                .dir = "/apex/com.android.tethering/etc/bpf/",
-                .prefix = "tethering/",
-                .allowedDomainBitmask = kTetheringApexDomainBitmask,
-                .allowedProgTypes = kTetheringApexAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
-        },
-        // T+ Tethering mainline module (shared with netd & system server)
-        // netutils_wrapper (for iptables xt_bpf) has access to programs
-        {
-                .dir = "/apex/com.android.tethering/etc/bpf/netd_shared/",
-                .prefix = "netd_shared/",
-                .allowedDomainBitmask = kTetheringApexDomainBitmask,
-                .allowedProgTypes = kTetheringApexAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
-        },
-        // T+ Tethering mainline module (shared with netd & system server)
-        // netutils_wrapper has no access, netd has read only access
-        {
-                .dir = "/apex/com.android.tethering/etc/bpf/netd_readonly/",
-                .prefix = "netd_readonly/",
-                .allowedDomainBitmask = kTetheringApexDomainBitmask,
-                .allowedProgTypes = kTetheringApexAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
-        },
-        // T+ Tethering mainline module (shared with system server)
-        {
-                .dir = "/apex/com.android.tethering/etc/bpf/net_shared/",
-                .prefix = "net_shared/",
-                .allowedDomainBitmask = kTetheringApexDomainBitmask,
-                .allowedProgTypes = kTetheringApexAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
-        },
-        // T+ Tethering mainline module (not shared, just network_stack)
-        {
-                .dir = "/apex/com.android.tethering/etc/bpf/net_private/",
-                .prefix = "net_private/",
-                .allowedDomainBitmask = kTetheringApexDomainBitmask,
-                .allowedProgTypes = kTetheringApexAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kTetheringApexAllowedProgTypes),
-        },
         // Core operating system
         {
                 .dir = "/system/etc/bpf/",
@@ -251,13 +180,6 @@ int main(int argc, char** argv) {
     (void)argc;
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
-    // Ensure we can determine the Android build type.
-    if (!android::bpf::isEng() && !android::bpf::isUser() && !android::bpf::isUserdebug()) {
-        ALOGE("Failed to determine the build type: got %s, want 'eng', 'user', or 'userdebug'",
-              android::bpf::getBuildType().c_str());
-        return 1;
-    }
-
     // Linux 5.16-rc1 changed the default to 2 (disabled but changeable), but we need 0 (enabled)
     // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on pre-5.13,
     // on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
@@ -270,14 +192,12 @@ int main(int argc, char** argv) {
     //  kernel does not have CONFIG_BPF_JIT=y)
     // BPF_JIT is required by R VINTF (which means 4.14/4.19/5.4 kernels),
     // but 4.14/4.19 were released with P & Q, and only 5.4 is new in R+.
-    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n") &&
-        android::bpf::isAtLeastKernelVersion(5, 4, 0)) return 1;
+    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 1;
 
     // Enable JIT kallsyms export for privileged users only
     // (Note: this (open) will fail with ENOENT 'No such file or directory' if
     //  kernel does not have CONFIG_HAVE_EBPF_JIT=y)
-    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n") &&
-        android::bpf::isAtLeastKernelVersion(5, 4, 0)) return 1;
+    if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
 
     // Create all the pin subdirectories
     // (this must be done first to allow selinux_context and pin_subdir functionality,
@@ -305,15 +225,6 @@ int main(int argc, char** argv) {
             sleep(20);
             return 2;
         }
-    }
-
-    int key = 1;
-    int value = 123;
-    android::base::unique_fd map(
-            android::bpf::createMap(BPF_MAP_TYPE_ARRAY, sizeof(key), sizeof(value), 2, 0));
-    if (android::bpf::writeToMapEntry(map, &key, &value, BPF_ANY)) {
-        ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
-        return 1;
     }
 
     if (android::base::SetProperty("bpf.progs_loaded", "1") == false) {

@@ -40,22 +40,16 @@ cc_binary {
 
     header_libs: ["bpf_headers"],
     shared_libs: [
-        "libcutils",
-        "libbpf_android",
         "libbase",
+        "libbpf_android",
         "liblog",
-        "libnetdutils",
-        "libbpf_bcc",
     ],
     srcs: [
         "BpfLoader.cpp",
     ],
 
-    init_rc: ["bpfloader.rc"],
-
     required: [
-        "btfloader",
-        "timeInState.o"
+        "timeInState.o",
     ],
 
     product_variables: {

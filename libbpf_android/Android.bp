@@ -39,11 +39,8 @@ cc_library {
 
     shared_libs: [
         "libbase",
-        "libcutils",
         "libutils",
         "liblog",
-        "libbpf_bcc",
-        "libbpf_minimal",
     ],
     header_libs: [
         "bpf_headers",
@@ -51,7 +48,6 @@ cc_library {
     export_header_lib_headers: [
         "bpf_headers",
     ],
-    export_shared_lib_headers: ["libbpf_bcc"],
     export_include_dirs: ["include"],
 
     defaults: ["bpf_defaults"],
@@ -79,7 +75,6 @@ cc_test {
     shared_libs: [
         "libbpf_android",
         "libbpf_bcc",
-        "libbpf_minimal",
         "libbase",
         "liblog",
         "libutils",
@@ -87,7 +82,6 @@ cc_test {
 
     data: [
         ":bpfLoadTpProg.o",
-        ":bpfLoadTpProgBtf.o",
     ],
     require_root: true,
 }
