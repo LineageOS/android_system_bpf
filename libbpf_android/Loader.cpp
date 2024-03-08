@@ -393,9 +393,6 @@ static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd,
                         size_t sizeOfBpfProgDef) {
     vector<char> pdData;
     int ret = readSectionByName("progs", elfFile, pdData);
-    // Older file formats do not require a 'progs' section at all.
-    // (We should probably figure out whether this is behaviour which is safe to remove now.)
-    if (ret == -2) return 0;
     if (ret) return ret;
 
     if (pdData.size() % sizeOfBpfProgDef) {
