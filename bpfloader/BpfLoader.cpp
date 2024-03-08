@@ -162,31 +162,6 @@ int createSysFsBpfSubDir(const char* const prefix) {
     return 0;
 }
 
-// Technically 'value' doesn't need to be newline terminated, but it's best
-// to include a newline to match 'echo "value" > /proc/sys/...foo' behaviour,
-// which is usually how kernel devs test the actual sysctl interfaces.
-int writeProcSysFile(const char *filename, const char *value) {
-    android::base::unique_fd fd(open(filename, O_WRONLY | O_CLOEXEC));
-    if (fd < 0) {
-        const int err = errno;
-        ALOGE("open('%s', O_WRONLY | O_CLOEXEC) -> %s", filename, strerror(err));
-        return -err;
-    }
-    int len = strlen(value);
-    int v = write(fd, value, len);
-    if (v < 0) {
-        const int err = errno;
-        ALOGE("write('%s', '%s', %d) -> %s", filename, value, len, strerror(err));
-        return -err;
-    }
-    if (v != len) {
-        // In practice, due to us only using this for /proc/sys/... files, this can't happen.
-        ALOGE("write('%s', '%s', %d) -> short write [%d]", filename, value, len, v);
-        return -EINVAL;
-    }
-    return 0;
-}
-
 int main(int argc, char** argv) {
     (void)argc;
     android::base::InitLogging(argv, &android::base::KernelLogger);
