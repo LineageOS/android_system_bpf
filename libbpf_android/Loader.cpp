@@ -895,8 +895,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
         domain selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
         domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
-        // Note: make sure to only check for unrecognized *after* verifying bpfloader
-        // version limits include this bpfloader's version.
 
         if (unrecognized(pin_subdir)) return -ENOTDIR;
 
