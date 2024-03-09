@@ -31,23 +31,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.41
-// WARNING: If you ever hit cherrypick conflicts here you're doing it wrong:
-// You are NOT allowed to cherrypick bpfloader related patches out of order.
-// (indeed: cherrypicking is probably a bad idea and you should merge instead)
-// Mainline supports ONLY the published versions of the bpfloader for each Android release.
-#define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 41u
-#define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
-
 #include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 #include "bpf/bpf_map_def.h"
 #include "include/libbpf_android.h"
-
-#if BPFLOADER_VERSION < COMPILE_FOR_BPFLOADER_VERSION
-#error "BPFLOADER_VERSION is less than COMPILE_FOR_BPFLOADER_VERSION"
-#endif
 
 #include <cstdlib>
 #include <fstream>
@@ -660,20 +647,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (md[i].zero != 0) abort();
 
-        if (BPFLOADER_VERSION < md[i].bpfloader_min_ver) {
-            ALOGI("skipping map %s which requires bpfloader min ver 0x%05x", mapNames[i].c_str(),
-                  md[i].bpfloader_min_ver);
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
-        if (BPFLOADER_VERSION >= md[i].bpfloader_max_ver) {
-            ALOGI("skipping map %s which requires bpfloader max ver 0x%05x", mapNames[i].c_str(),
-                  md[i].bpfloader_max_ver);
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
         if (kvers < md[i].min_kver) {
             ALOGI("skipping map %s which requires kernel version 0x%x >= 0x%x",
                   mapNames[i].c_str(), kvers, md[i].min_kver);
@@ -944,17 +917,10 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (kvers < min_kver) continue;
         if (kvers >= max_kver) continue;
 
-        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
-        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
         domain selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
         domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
         // Note: make sure to only check for unrecognized *after* verifying bpfloader
         // version limits include this bpfloader's version.
-
-        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)", i, name.c_str(),
-              bpfMinVer, bpfMaxVer);
-        if (BPFLOADER_VERSION < bpfMinVer) continue;
-        if (BPFLOADER_VERSION >= bpfMaxVer) continue;
 
         if ((cs[i].prog_def->ignore_on_eng && isEng()) ||
             (cs[i].prog_def->ignore_on_user && isUser()) ||
