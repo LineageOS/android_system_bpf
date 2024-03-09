@@ -31,23 +31,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// This is BpfLoader v0.41
-// WARNING: If you ever hit cherrypick conflicts here you're doing it wrong:
-// You are NOT allowed to cherrypick bpfloader related patches out of order.
-// (indeed: cherrypicking is probably a bad idea and you should merge instead)
-// Mainline supports ONLY the published versions of the bpfloader for each Android release.
-#define BPFLOADER_VERSION_MAJOR 0u
-#define BPFLOADER_VERSION_MINOR 41u
-#define BPFLOADER_VERSION ((BPFLOADER_VERSION_MAJOR << 16) | BPFLOADER_VERSION_MINOR)
-
 #include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 #include "bpf/bpf_map_def.h"
 #include "include/libbpf_android.h"
-
-#if BPFLOADER_VERSION < COMPILE_FOR_BPFLOADER_VERSION
-#error "BPFLOADER_VERSION is less than COMPILE_FOR_BPFLOADER_VERSION"
-#endif
 
 #include <cstdlib>
 #include <fstream>
@@ -81,11 +68,6 @@ using std::vector;
 
 namespace android {
 namespace bpf {
-
-const std::string& getBuildType() {
-    static std::string t = android::base::GetProperty("ro.build.type", "unknown");
-    return t;
-}
 
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
@@ -660,20 +642,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (md[i].zero != 0) abort();
 
-        if (BPFLOADER_VERSION < md[i].bpfloader_min_ver) {
-            ALOGI("skipping map %s which requires bpfloader min ver 0x%05x", mapNames[i].c_str(),
-                  md[i].bpfloader_min_ver);
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
-        if (BPFLOADER_VERSION >= md[i].bpfloader_max_ver) {
-            ALOGI("skipping map %s which requires bpfloader max ver 0x%05x", mapNames[i].c_str(),
-                  md[i].bpfloader_max_ver);
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
         if (kvers < md[i].min_kver) {
             ALOGI("skipping map %s which requires kernel version 0x%x >= 0x%x",
                   mapNames[i].c_str(), kvers, md[i].min_kver);
@@ -684,25 +652,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (kvers >= md[i].max_kver) {
             ALOGI("skipping map %s which requires kernel version 0x%x < 0x%x",
                   mapNames[i].c_str(), kvers, md[i].max_kver);
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
-        if ((md[i].ignore_on_eng && isEng()) || (md[i].ignore_on_user && isUser()) ||
-            (md[i].ignore_on_userdebug && isUserdebug())) {
-            ALOGI("skipping map %s which is ignored on %s builds", mapNames[i].c_str(),
-                  getBuildType().c_str());
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
-        if ((isArm() && isKernel32Bit() && md[i].ignore_on_arm32) ||
-            (isArm() && isKernel64Bit() && md[i].ignore_on_aarch64) ||
-            (isX86() && isKernel32Bit() && md[i].ignore_on_x86_32) ||
-            (isX86() && isKernel64Bit() && md[i].ignore_on_x86_64) ||
-            (isRiscV() && md[i].ignore_on_riscv64)) {
-            ALOGI("skipping map %s which is ignored on %s", mapNames[i].c_str(),
-                  describeArch());
             mapFds.push_back(unique_fd());
             continue;
         }
@@ -944,34 +893,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (kvers < min_kver) continue;
         if (kvers >= max_kver) continue;
 
-        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
-        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
         domain selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
         domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
-        // Note: make sure to only check for unrecognized *after* verifying bpfloader
-        // version limits include this bpfloader's version.
-
-        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)", i, name.c_str(),
-              bpfMinVer, bpfMaxVer);
-        if (BPFLOADER_VERSION < bpfMinVer) continue;
-        if (BPFLOADER_VERSION >= bpfMaxVer) continue;
-
-        if ((cs[i].prog_def->ignore_on_eng && isEng()) ||
-            (cs[i].prog_def->ignore_on_user && isUser()) ||
-            (cs[i].prog_def->ignore_on_userdebug && isUserdebug())) {
-            ALOGD("cs[%d].name:%s is ignored on %s builds", i, name.c_str(),
-                  getBuildType().c_str());
-            continue;
-        }
-
-        if ((isArm() && isKernel32Bit() && cs[i].prog_def->ignore_on_arm32) ||
-            (isArm() && isKernel64Bit() && cs[i].prog_def->ignore_on_aarch64) ||
-            (isX86() && isKernel32Bit() && cs[i].prog_def->ignore_on_x86_32) ||
-            (isX86() && isKernel64Bit() && cs[i].prog_def->ignore_on_x86_64) ||
-            (isRiscV() && cs[i].prog_def->ignore_on_riscv64)) {
-            ALOGD("cs[%d].name:%s is ignored on %s", i, name.c_str(), describeArch());
-            continue;
-        }
 
         if (unrecognized(pin_subdir)) return -ENOTDIR;
 
