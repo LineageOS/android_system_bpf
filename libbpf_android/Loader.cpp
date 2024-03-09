@@ -393,9 +393,6 @@ static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd,
                         size_t sizeOfBpfProgDef) {
     vector<char> pdData;
     int ret = readSectionByName("progs", elfFile, pdData);
-    // Older file formats do not require a 'progs' section at all.
-    // (We should probably figure out whether this is behaviour which is safe to remove now.)
-    if (ret == -2) return 0;
     if (ret) return ret;
 
     if (pdData.size() % sizeOfBpfProgDef) {
@@ -1129,39 +1126,12 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     }
 
     // the following default values are for bpfloader V0.0 format which does not include them
-    unsigned int bpfLoaderMinVer =
-            readSectionUint("bpfloader_min_ver", elfFile, DEFAULT_BPFLOADER_MIN_VER);
-    unsigned int bpfLoaderMaxVer =
-            readSectionUint("bpfloader_max_ver", elfFile, DEFAULT_BPFLOADER_MAX_VER);
-    unsigned int bpfLoaderMinRequiredVer =
-            readSectionUint("bpfloader_min_required_ver", elfFile, 0);
     size_t sizeOfBpfMapDef =
             readSectionUint("size_of_bpf_map_def", elfFile, DEFAULT_SIZEOF_BPF_MAP_DEF);
     size_t sizeOfBpfProgDef =
             readSectionUint("size_of_bpf_prog_def", elfFile, DEFAULT_SIZEOF_BPF_PROG_DEF);
 
-    // inclusive lower bound check
-    if (BPFLOADER_VERSION < bpfLoaderMinVer) {
-        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with min ver 0x%05x",
-              BPFLOADER_VERSION, elfPath, bpfLoaderMinVer);
-        return 0;
-    }
-
-    // exclusive upper bound check
-    if (BPFLOADER_VERSION >= bpfLoaderMaxVer) {
-        ALOGI("BpfLoader version 0x%05x ignoring ELF object %s with max ver 0x%05x",
-              BPFLOADER_VERSION, elfPath, bpfLoaderMaxVer);
-        return 0;
-    }
-
-    if (BPFLOADER_VERSION < bpfLoaderMinRequiredVer) {
-        ALOGI("BpfLoader version 0x%05x failing due to ELF object %s with required min ver 0x%05x",
-              BPFLOADER_VERSION, elfPath, bpfLoaderMinRequiredVer);
-        return -1;
-    }
-
-    ALOGI("BpfLoader version 0x%05x processing ELF object %s with ver [0x%05x,0x%05x)",
-          BPFLOADER_VERSION, elfPath, bpfLoaderMinVer, bpfLoaderMaxVer);
+    ALOGI("Platform BpfLoader processing ELF object %s", elfPath);
 
     if (sizeOfBpfMapDef < DEFAULT_SIZEOF_BPF_MAP_DEF) {
         ALOGE("sizeof(bpf_map_def) of %zu is too small (< %d)", sizeOfBpfMapDef,
