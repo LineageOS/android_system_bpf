@@ -69,11 +69,6 @@ using std::vector;
 namespace android {
 namespace bpf {
 
-const std::string& getBuildType() {
-    static std::string t = android::base::GetProperty("ro.build.type", "unknown");
-    return t;
-}
-
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
 constexpr const char* lookupSelinuxContext(const domain d, const char* const unspecified = "") {
@@ -661,14 +656,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             continue;
         }
 
-        if ((md[i].ignore_on_eng && isEng()) || (md[i].ignore_on_user && isUser()) ||
-            (md[i].ignore_on_userdebug && isUserdebug())) {
-            ALOGI("skipping map %s which is ignored on %s builds", mapNames[i].c_str(),
-                  getBuildType().c_str());
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
         if ((isArm() && isKernel32Bit() && md[i].ignore_on_arm32) ||
             (isArm() && isKernel64Bit() && md[i].ignore_on_aarch64) ||
             (isX86() && isKernel32Bit() && md[i].ignore_on_x86_32) ||
@@ -921,14 +908,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
         // Note: make sure to only check for unrecognized *after* verifying bpfloader
         // version limits include this bpfloader's version.
-
-        if ((cs[i].prog_def->ignore_on_eng && isEng()) ||
-            (cs[i].prog_def->ignore_on_user && isUser()) ||
-            (cs[i].prog_def->ignore_on_userdebug && isUserdebug())) {
-            ALOGD("cs[%d].name:%s is ignored on %s builds", i, name.c_str(),
-                  getBuildType().c_str());
-            continue;
-        }
 
         if ((isArm() && isKernel32Bit() && cs[i].prog_def->ignore_on_arm32) ||
             (isArm() && isKernel64Bit() && cs[i].prog_def->ignore_on_aarch64) ||
