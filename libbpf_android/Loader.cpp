@@ -656,17 +656,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             continue;
         }
 
-        if ((isArm() && isKernel32Bit() && md[i].ignore_on_arm32) ||
-            (isArm() && isKernel64Bit() && md[i].ignore_on_aarch64) ||
-            (isX86() && isKernel32Bit() && md[i].ignore_on_x86_32) ||
-            (isX86() && isKernel64Bit() && md[i].ignore_on_x86_64) ||
-            (isRiscV() && md[i].ignore_on_riscv64)) {
-            ALOGI("skipping map %s which is ignored on %s", mapNames[i].c_str(),
-                  describeArch());
-            mapFds.push_back(unique_fd());
-            continue;
-        }
-
         enum bpf_map_type type = md[i].type;
         if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
             // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
@@ -908,15 +897,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
         // Note: make sure to only check for unrecognized *after* verifying bpfloader
         // version limits include this bpfloader's version.
-
-        if ((isArm() && isKernel32Bit() && cs[i].prog_def->ignore_on_arm32) ||
-            (isArm() && isKernel64Bit() && cs[i].prog_def->ignore_on_aarch64) ||
-            (isX86() && isKernel32Bit() && cs[i].prog_def->ignore_on_x86_32) ||
-            (isX86() && isKernel64Bit() && cs[i].prog_def->ignore_on_x86_64) ||
-            (isRiscV() && cs[i].prog_def->ignore_on_riscv64)) {
-            ALOGD("cs[%d].name:%s is ignored on %s", i, name.c_str(), describeArch());
-            continue;
-        }
 
         if (unrecognized(pin_subdir)) return -ENOTDIR;
 
