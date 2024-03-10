@@ -371,33 +371,19 @@ static string getSectionName(enum bpf_prog_type type)
     return "UNKNOWN SECTION NAME " + std::to_string(type);
 }
 
-static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd,
-                        size_t sizeOfBpfProgDef) {
+static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd) {
     vector<char> pdData;
     int ret = readSectionByName("progs", elfFile, pdData);
     if (ret) return ret;
 
-    if (pdData.size() % sizeOfBpfProgDef) {
+    if (pdData.size() % sizeof(struct bpf_prog_def)) {
         ALOGE("readProgDefs failed due to improper sized progs section, %zu %% %zu != 0",
-              pdData.size(), sizeOfBpfProgDef);
+              pdData.size(), sizeof(struct bpf_prog_def));
         return -1;
     };
 
-    int progCount = pdData.size() / sizeOfBpfProgDef;
-    pd.resize(progCount);
-    size_t trimmedSize = std::min(sizeOfBpfProgDef, sizeof(struct bpf_prog_def));
-
-    const char* dataPtr = pdData.data();
-    for (auto& p : pd) {
-        // First we zero initialize
-        memset(&p, 0, sizeof(p));
-        // Then we set non-zero defaults
-        p.bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER;  // v1.0
-        // Then we copy over the structure prefix from the ELF file.
-        memcpy(&p, dataPtr, trimmedSize);
-        // Move to next struct in the ELF file
-        dataPtr += sizeOfBpfProgDef;
-    }
+    pd.resize(pdData.size() / sizeof(struct bpf_prog_def));
+    memcpy(pd.data(), pdData.data(), pdData.size());
     return 0;
 }
 
@@ -460,7 +446,7 @@ static bool IsAllowed(bpf_prog_type type, const bpf_prog_type* allowed, size_t n
 }
 
 /* Read a section by its index - for ex to get sec hdr strtab blob */
-static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs, size_t sizeOfBpfProgDef,
+static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs,
                             const bpf_prog_type* allowed, size_t numAllowed) {
     vector<Elf64_Shdr> shTable;
     int entries, ret = 0;
@@ -470,7 +456,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs, size_t s
     entries = shTable.size();
 
     vector<struct bpf_prog_def> pd;
-    ret = readProgDefs(elfFile, pd, sizeOfBpfProgDef);
+    ret = readProgDefs(elfFile, pd);
     if (ret) return ret;
     vector<string> progDefNames;
     ret = getSectionSymNames(elfFile, "progs", progDefNames);
@@ -599,8 +585,7 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
 }
 
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
-                      const char* prefix, const unsigned long long allowedDomainBitmask,
-                      const size_t sizeOfBpfMapDef) {
+                      const char* prefix, const unsigned long long allowedDomainBitmask) {
     int ret;
     vector<char> mdData;
     vector<struct bpf_map_def> md;
@@ -611,28 +596,13 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     if (ret == -2) return 0;  // no maps to read
     if (ret) return ret;
 
-    if (mdData.size() % sizeOfBpfMapDef) {
+    if (mdData.size() % sizeof(struct bpf_map_def)) {
         ALOGE("createMaps failed due to improper sized maps section, %zu %% %zu != 0",
-              mdData.size(), sizeOfBpfMapDef);
+              mdData.size(), sizeof(struct bpf_map_def));
         return -1;
-    };
-
-    int mapCount = mdData.size() / sizeOfBpfMapDef;
-    md.resize(mapCount);
-    size_t trimmedSize = std::min(sizeOfBpfMapDef, sizeof(struct bpf_map_def));
-
-    const char* dataPtr = mdData.data();
-    for (auto& m : md) {
-        // First we zero initialize
-        memset(&m, 0, sizeof(m));
-        // Then we set non-zero defaults
-        m.bpfloader_max_ver = DEFAULT_BPFLOADER_MAX_VER;  // v1.0
-        m.max_kver = 0xFFFFFFFFu;                         // matches KVER_INF from bpf_helpers.h
-        // Then we copy over the structure prefix from the ELF file.
-        memcpy(&m, dataPtr, trimmedSize);
-        // Move to next struct in the ELF file
-        dataPtr += sizeOfBpfMapDef;
     }
+    md.resize(mdData.size() / sizeof(struct bpf_map_def));
+    memcpy(md.data(), mdData.data(), mdData.size());
 
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
@@ -1048,28 +1018,9 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
               elfPath, (char*)license.data());
     }
 
-    // the following default values are for bpfloader V0.0 format which does not include them
-    size_t sizeOfBpfMapDef =
-            readSectionUint("size_of_bpf_map_def", elfFile, DEFAULT_SIZEOF_BPF_MAP_DEF);
-    size_t sizeOfBpfProgDef =
-            readSectionUint("size_of_bpf_prog_def", elfFile, DEFAULT_SIZEOF_BPF_PROG_DEF);
-
     ALOGI("Platform BpfLoader processing ELF object %s", elfPath);
 
-    if (sizeOfBpfMapDef < DEFAULT_SIZEOF_BPF_MAP_DEF) {
-        ALOGE("sizeof(bpf_map_def) of %zu is too small (< %d)", sizeOfBpfMapDef,
-              DEFAULT_SIZEOF_BPF_MAP_DEF);
-        return -1;
-    }
-
-    if (sizeOfBpfProgDef < DEFAULT_SIZEOF_BPF_PROG_DEF) {
-        ALOGE("sizeof(bpf_prog_def) of %zu is too small (< %d)", sizeOfBpfProgDef,
-              DEFAULT_SIZEOF_BPF_PROG_DEF);
-        return -1;
-    }
-
-    ret = readCodeSections(elfFile, cs, sizeOfBpfProgDef, location.allowedProgTypes,
-                           location.allowedProgTypesLength);
+    ret = readCodeSections(elfFile, cs, location.allowedProgTypes, location.allowedProgTypesLength);
     if (ret) {
         ALOGE("Couldn't read all code sections in %s", elfPath);
         return ret;
@@ -1078,8 +1029,7 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     /* Just for future debugging */
     if (0) dumpAllCs(cs);
 
-    ret = createMaps(elfPath, elfFile, mapFds, location.prefix, location.allowedDomainBitmask,
-                     sizeOfBpfMapDef);
+    ret = createMaps(elfPath, elfFile, mapFds, location.prefix, location.allowedDomainBitmask);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
