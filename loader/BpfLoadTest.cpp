@@ -58,7 +58,6 @@ class BpfLoadTest : public TestWithParam<std::string> {
         Location loc = {
             .dir = "",
             .prefix = "",
-            .allowedDomainBitmask = 0,
             .allowedProgTypes = kAllowed,
             .allowedProgTypesLength = arraysize(kAllowed),
         };
