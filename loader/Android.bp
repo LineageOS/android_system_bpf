@@ -72,9 +72,11 @@ cc_test {
         "-Werror",
         "-Wno-error=unused-variable",
     ],
-    static_libs: ["libgmock"],
-    shared_libs: [
+    static_libs: [
         "libbpf_android",
+        "libgmock",
+    ],
+    shared_libs: [
         "libbpf_bcc",
         "libbase",
         "liblog",
@@ -103,9 +105,9 @@ cc_binary {
     header_libs: ["bpf_headers"],
     shared_libs: [
         "libbase",
-        "libbpf_android",
         "liblog",
     ],
+    static_libs: ["libbpf_android"],
     srcs: [
         "BpfLoader.cpp",
     ],
