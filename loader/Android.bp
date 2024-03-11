@@ -122,5 +122,5 @@ cc_binary {
                 "bpfRingbufProg.o",
             ],
         },
-    }
+    },
 }
