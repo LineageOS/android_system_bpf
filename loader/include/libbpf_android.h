@@ -24,55 +24,9 @@
 namespace android {
 namespace bpf {
 
-// Bpf programs may specify per-program & per-map selinux_context and pin_subdir.
-//
-// The BpfLoader needs to convert these bpf.o specified strings into an enum
-// for internal use (to check that valid values were specified for the specific
-// location of the bpf.o file).
-//
-// It also needs to map selinux_context's into pin_subdir's.
-// This is because of how selinux_context is actually implemented via pin+rename.
-//
-// Thus 'domain' enumerates all selinux_context's/pin_subdir's that the BpfLoader
-// is aware of.  Thus there currently needs to be a 1:1 mapping between the two.
-//
-enum class domain : int {
-    unrecognized = -1,  // invalid for this version of the bpfloader
-    unspecified = 0,    // means just use the default for that specific pin location
-    platform,           //      fs_bpf               /sys/fs/bpf
-    vendor,             // (T+) fs_bpf_vendor        /sys/fs/bpf/vendor
-    loader,             // (U+) fs_bpf_loader        /sys/fs/bpf/loader
-};
-
-// Note: this does not include domain::unrecognized, but does include domain::unspecified
-static constexpr domain AllDomains[] = {
-    domain::unspecified,
-    domain::platform,
-    domain::vendor,
-    domain::loader,
-};
-
-static constexpr bool unrecognized(domain d) {
-    return d == domain::unrecognized;
-}
-
-// Note: this doesn't handle unrecognized, handle it first.
-static constexpr bool specified(domain d) {
-    return d != domain::unspecified;
-}
-
-static constexpr unsigned long long domainToBitmask(domain d) {
-    return specified(d) ? 1uLL << (static_cast<int>(d) - 1) : 0;
-}
-
-static constexpr bool inDomainBitmask(domain d, unsigned long long v) {
-    return domainToBitmask(d) & v;
-}
-
 struct Location {
     const char* const dir = "";
     const char* const prefix = "";
-    unsigned long long allowedDomainBitmask = 0;
     const bpf_prog_type* allowedProgTypes = nullptr;
     size_t allowedProgTypesLength = 0;
 };
