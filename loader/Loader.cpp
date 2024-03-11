@@ -663,26 +663,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     return ret;
 }
 
-/* For debugging, dump all instructions */
-static void dumpIns(char* ins, int size) {
-    for (int row = 0; row < size / 8; row++) {
-        ALOGE("%d: ", row);
-        for (int j = 0; j < 8; j++) {
-            ALOGE("%3x ", ins[(row * 8) + j]);
-        }
-        ALOGE("\n");
-    }
-}
-
-/* For debugging, dump all code sections from cs list */
-static void dumpAllCs(vector<codeSection>& cs) {
-    for (int i = 0; i < (int)cs.size(); i++) {
-        ALOGE("Dumping cs %d, name %s", int(i), cs[i].name.c_str());
-        dumpIns((char*)cs[i].data.data(), cs[i].data.size());
-        ALOGE("-----------");
-    }
-}
-
 static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
     int insnIndex;
     struct bpf_insn *insn, *insns;
@@ -700,9 +680,7 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
     }
 
     if (insn->code != (BPF_LD | BPF_IMM | BPF_DW)) {
-        ALOGE("Dumping all instructions till ins %d", insnIndex);
         ALOGE("invalid relo for insn %d: code 0x%x", insnIndex, insn->code);
-        dumpIns((char*)insnsPtr, (insnIndex + 3) * 8);
         return;
     }
 
@@ -883,9 +861,6 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
         ALOGE("Couldn't read all code sections in %s", elfPath);
         return ret;
     }
-
-    /* Just for future debugging */
-    if (0) dumpAllCs(cs);
 
     ret = createMaps(elfPath, elfFile, mapFds, location.prefix);
     if (ret) {
