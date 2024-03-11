@@ -72,9 +72,11 @@ cc_test {
         "-Werror",
         "-Wno-error=unused-variable",
     ],
-    static_libs: ["libgmock"],
-    shared_libs: [
+    static_libs: [
         "libbpf_android",
+        "libgmock",
+    ],
+    shared_libs: [
         "libbpf_bcc",
         "libbase",
         "liblog",
@@ -85,4 +87,40 @@ cc_test {
         ":bpfLoadTpProg.o",
     ],
     require_root: true,
+}
+
+cc_binary {
+    name: "bpfloader",
+
+    defaults: ["bpf_defaults"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wthread-safety",
+    ],
+    sanitize: {
+        integer_overflow: true,
+    },
+
+    header_libs: ["bpf_headers"],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+    static_libs: ["libbpf_android"],
+    srcs: [
+        "BpfLoader.cpp",
+    ],
+
+    required: [
+        "timeInState.o",
+    ],
+
+    product_variables: {
+        debuggable: {
+            required: [
+                "bpfRingbufProg.o",
+            ],
+        },
+    },
 }

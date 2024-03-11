@@ -50,19 +50,7 @@
 #include "bpf/BpfUtils.h"
 
 using android::base::EndsWith;
-using android::bpf::domain;
 using std::string;
-
-bool exists(const char* const path) {
-    int v = access(path, F_OK);
-    if (!v) {
-        ALOGI("%s exists.", path);
-        return true;
-    }
-    if (errno == ENOENT) return false;
-    ALOGE("FATAL: access(%s, F_OK) -> %d [%d:%s]", path, v, errno, strerror(errno));
-    abort();  // can only hit this if permissions (likely selinux) are screwed up
-}
 
 // Networking-related program types are limited to the Tethering Apex
 // to prevent things from breaking due to conflicts on mainline updates
@@ -93,7 +81,6 @@ const android::bpf::Location locations[] = {
         {
                 .dir = "/system/etc/bpf/",
                 .prefix = "",
-                .allowedDomainBitmask = domainToBitmask(domain::platform),
                 .allowedProgTypes = kPlatformAllowedProgTypes,
                 .allowedProgTypesLength = arraysize(kPlatformAllowedProgTypes),
         },
@@ -101,7 +88,6 @@ const android::bpf::Location locations[] = {
         {
                 .dir = "/system/etc/bpf/uprobestats/",
                 .prefix = "uprobestats/",
-                .allowedDomainBitmask = domainToBitmask(domain::platform),
                 .allowedProgTypes = kUprobestatsAllowedProgTypes,
                 .allowedProgTypesLength = arraysize(kUprobestatsAllowedProgTypes),
         },
@@ -109,7 +95,6 @@ const android::bpf::Location locations[] = {
         {
                 .dir = "/vendor/etc/bpf/",
                 .prefix = "vendor/",
-                .allowedDomainBitmask = domainToBitmask(domain::vendor),
                 .allowedProgTypes = kVendorAllowedProgTypes,
                 .allowedProgTypesLength = arraysize(kVendorAllowedProgTypes),
         },
@@ -166,17 +151,9 @@ int main(int argc, char** argv) {
     (void)argc;
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
-    // Create all the pin subdirectories
-    // (this must be done first to allow selinux_context and pin_subdir functionality,
-    //  which could otherwise fail with ENOENT during object pinning or renaming,
-    //  due to ordering issues)
-    for (const auto& location : locations) {
-        if (createSysFsBpfSubDir(location.prefix)) return 1;
-    }
-
     // Load all ELF objects, create programs and maps, and pin them
     for (const auto& location : locations) {
-        if (loadAllElfObjects(location) != 0) {
+        if (createSysFsBpfSubDir(location.prefix) || loadAllElfObjects(location)) {
             ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS FROM %s ===", location.dir);
             ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
             ALOGE("If this triggers randomly, you might be hitting some memory allocation "
@@ -187,7 +164,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (android::base::SetProperty("bpf.progs_loaded", "1") == false) {
+    if (!android::base::SetProperty("bpf.progs_loaded", "1")) {
         ALOGE("Failed to set bpf.progs_loaded property");
         return 1;
     }
