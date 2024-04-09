@@ -36,9 +36,21 @@ class BpfLoadTest : public TestWithParam<std::string> {
     int mProgFd;
     std::string mTpProgPath;
     std::string mTpNeverLoadProgPath;
-    std::string mTpMapPath;;
+    std::string mTpMapPath;
 
     void SetUp() {
+        /*
+         * b/326156952
+         *
+         * Kernels prior to 5.11 used rlimit memlock accounting for bpf memory
+         * allocations, and therefore require increasing the rlimit of this
+         * process for the maps to be created successfully.
+         *
+         * 5.11 introduces cgroup-based accounting as discussed here:
+         * https://lore.kernel.org/bpf/20201201215900.3569844-1-guro@fb.com/
+         */
+        if (!isAtLeastKernelVersion(5, 11, 0)) EXPECT_EQ(setrlimitForTest(), 0);
+
         mTpProgPath = "/sys/fs/bpf/prog_" + GetParam() + "_tracepoint_sched_sched_switch";
         unlink(mTpProgPath.c_str());
 
