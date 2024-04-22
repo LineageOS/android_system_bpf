@@ -631,7 +631,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
               .max_entries = max_entries,
               .map_flags = md[i].map_flags,
             };
-            if (isAtLeastKernelVersion(4, 14, 0))
+            if (isAtLeastKernelVersion(4, 15, 0))
                 strlcpy(req.map_name, mapNames[i].c_str(), sizeof(req.map_name));
             fd.reset(bpf(BPF_MAP_CREATE, req));
             saved_errno = errno;
