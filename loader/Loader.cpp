@@ -223,7 +223,7 @@ unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int d
     vector<char> theBytes;
     int ret = readSectionByName(name, elfFile, theBytes);
     if (ret) {
-        ALOGD("Couldn't find section %s (defaulting to %u [0x%x]).", name, defVal, defVal);
+        ALOGV("Couldn't find section %s (defaulting to %u [0x%x]).", name, defVal, defVal);
         return defVal;
     } else if (theBytes.size() < sizeof(unsigned int)) {
         ALOGE("Section %s too short (defaulting to %u [0x%x]).", name, defVal, defVal);
@@ -237,7 +237,7 @@ unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int d
         value += static_cast<unsigned char>(theBytes[1]);
         value <<= 8;
         value += static_cast<unsigned char>(theBytes[0]);
-        ALOGI("Section %s value is %u [0x%x]", name, value, value);
+        ALOGV("Section %s value is %u [0x%x]", name, value, value);
         return value;
     }
 }
@@ -438,7 +438,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs,
 
         ret = readSectionByIdx(elfFile, i, cs_temp.data);
         if (ret) return ret;
-        ALOGD("Loaded code section %d (%s)", i, name.c_str());
+        ALOGV("Loaded code section %d (%s)", i, name.c_str());
 
         vector<string> csSymNames;
         ret = getSectionSymNames(elfFile, oldName, csSymNames, STT_FUNC);
@@ -458,13 +458,13 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs,
             if (name == (".rel" + oldName)) {
                 ret = readSectionByIdx(elfFile, i + 1, cs_temp.rel_data);
                 if (ret) return ret;
-                ALOGD("Loaded relo section %d (%s)", i, name.c_str());
+                ALOGV("Loaded relo section %d (%s)", i, name.c_str());
             }
         }
 
         if (cs_temp.data.size() > 0) {
             cs.push_back(std::move(cs_temp));
-            ALOGD("Adding section %d to cs list", i);
+            ALOGV("Adding section %d to cs list", i);
         }
     }
     return 0;
@@ -559,14 +559,14 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (md[i].zero != 0) abort();
 
         if (kvers < md[i].min_kver) {
-            ALOGI("skipping map %s which requires kernel version 0x%x >= 0x%x",
+            ALOGD("skipping map %s which requires kernel version 0x%x >= 0x%x",
                   mapNames[i].c_str(), kvers, md[i].min_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (kvers >= md[i].max_kver) {
-            ALOGI("skipping map %s which requires kernel version 0x%x < 0x%x",
+            ALOGD("skipping map %s which requires kernel version 0x%x < 0x%x",
                   mapNames[i].c_str(), kvers, md[i].max_kver);
             mapFds.push_back(unique_fd());
             continue;
@@ -604,7 +604,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             fd.reset(mapRetrieveRO(mapPinLoc.c_str()));
             saved_errno = errno;
-            ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
+            ALOGV("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
             reuse = true;
         } else {
             union bpf_attr req = {
@@ -617,7 +617,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             strlcpy(req.map_name, mapNames[i].c_str(), sizeof(req.map_name));
             fd.reset(bpf(BPF_MAP_CREATE, req));
             saved_errno = errno;
-            ALOGD("bpf_create_map name %s, ret: %d", mapNames[i].c_str(), fd.get());
+            ALOGV("bpf_create_map name %s, ret: %d", mapNames[i].c_str(), fd.get());
         }
 
         if (!fd.ok()) return -saved_errno;
@@ -654,7 +654,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (mapId == -1) {
             ALOGE("bpfGetFdMapId failed, ret: %d [%d]", mapId, errno);
         } else {
-            ALOGI("map %s id %d", mapPinLoc.c_str(), mapId);
+            ALOGD("map %s id %d", mapPinLoc.c_str(), mapId);
         }
 
         mapFds.push_back(std::move(fd));
@@ -674,7 +674,7 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
 
     // Occasionally might be useful for relocation debugging, but pretty spammy
     if (0) {
-        ALOGD("applying relo to instruction at byte offset: %llu, "
+        ALOGV("applying relo to instruction at byte offset: %llu, "
               "insn offset %d, insn %llx",
               (unsigned long long)offset, insnIndex, *(unsigned long long*)insn);
     }
@@ -739,10 +739,11 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
         unsigned min_kver = cs[i].prog_def->min_kver;
         unsigned max_kver = cs[i].prog_def->max_kver;
-        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)", i, name.c_str(), min_kver,
-             max_kver, kvers);
-        if (kvers < min_kver) continue;
-        if (kvers >= max_kver) continue;
+        if (kvers < min_kver || kvers >= max_kver) {
+            ALOGD("skipping program cs[%d].name:%s min_kver:%x max_kver:%x (kvers:%x)",
+                  i, name.c_str(), min_kver, max_kver, kvers);
+            continue;
+        }
 
         // strip any potential $foo suffix
         // this can be used to provide duplicate programs
@@ -756,7 +757,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                             objName + '_' + string(name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
-            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
+            ALOGV("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
                   (!fd.ok() ? std::strerror(errno) : "no error"));
             reuse = true;
         } else {
@@ -776,10 +777,10 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             strlcpy(req.prog_name, cs[i].name.c_str(), sizeof(req.prog_name));
             fd.reset(bpf(BPF_PROG_LOAD, req));
 
-            ALOGD("BPF_PROG_LOAD call for %s (%s) returned fd: %d (%s)", elfPath,
-                  cs[i].name.c_str(), fd.get(), (!fd.ok() ? std::strerror(errno) : "no error"));
-
             if (!fd.ok()) {
+                ALOGW("BPF_PROG_LOAD call for %s (%s) returned fd: %d (%s)", elfPath,
+                      cs[i].name.c_str(), fd.get(), std::strerror(errno));
+
                 vector<string> lines = android::base::Split(log_buf.data(), "\n");
 
                 ALOGW("BPF_PROG_LOAD - BEGIN log_buf contents:");
@@ -821,7 +822,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (progId == -1) {
             ALOGE("bpfGetFdProgId failed, ret: %d [%d]", progId, errno);
         } else {
-            ALOGI("prog %s id %d", progPinLoc.c_str(), progId);
+            ALOGD("prog %s id %d", progPinLoc.c_str(), progId);
         }
     }
 
@@ -848,13 +849,11 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     if (ret) {
         ALOGE("Couldn't find license in %s", elfPath);
         return ret;
-    } else {
-        ALOGD("Loading %s%s ELF object %s with license %s",
-              *isCritical ? "critical for " : "optional", *isCritical ? (char*)critical.data() : "",
-              elfPath, (char*)license.data());
     }
 
-    ALOGI("Platform BpfLoader processing ELF object %s", elfPath);
+    ALOGI("Platform BpfLoader loading %s%s ELF object %s with license %s",
+          *isCritical ? "critical for " : "optional", *isCritical ? (char*)critical.data() : "",
+          elfPath, (char*)license.data());
 
     ret = readCodeSections(elfFile, cs, location.allowedProgTypes, location.allowedProgTypesLength);
     if (ret) {
@@ -869,7 +868,7 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     }
 
     for (int i = 0; i < (int)mapFds.size(); i++)
-        ALOGD("map_fd found at %d is %d in %s", i, mapFds[i].get(), elfPath);
+        ALOGV("map_fd found at %d is %d in %s", i, mapFds[i].get(), elfPath);
 
     applyMapRelo(elfFile, mapFds, cs);
 
