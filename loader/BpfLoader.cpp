@@ -119,7 +119,7 @@ int loadAllElfObjects(const android::bpf::Location& location) {
                 if (critical) retVal = ret;
                 ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), std::strerror(-ret));
             } else {
-                ALOGI("Loaded object: %s", progPath.c_str());
+                ALOGV("Loaded object: %s", progPath.c_str());
             }
         }
         closedir(dir);
