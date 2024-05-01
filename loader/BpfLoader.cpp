@@ -40,7 +40,6 @@
 
 #include <android-base/logging.h>
 #include <android-base/macros.h>
-#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
@@ -147,8 +146,7 @@ int createSysFsBpfSubDir(const char* const prefix) {
     return 0;
 }
 
-int main(int argc, char** argv) {
-    (void)argc;
+int main(int __unused argc, char** argv, char * const envp[]) {
     android::base::InitLogging(argv, &android::base::KernelLogger);
 
     // Load all ELF objects, create programs and maps, and pin them
@@ -160,14 +158,12 @@ int main(int argc, char** argv) {
                   "problems or startup script race.");
             ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
             sleep(20);
-            return 2;
+            return 120;
         }
     }
 
-    if (!android::base::SetProperty("bpf.progs_loaded", "1")) {
-        ALOGE("Failed to set bpf.progs_loaded property");
-        return 1;
-    }
-
-    return 0;
+    const char * args[] = { "/apex/com.android.tethering/bin/netbpfload", "done", NULL, };
+    execve(args[0], (char**)args, envp);
+    ALOGE("FATAL: execve(): %d[%s]", errno, strerror(errno));
+    return 121;
 }
