@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "LibBpfLoader"
+#define LOG_TAG "BpfLoader"
 
 #include <errno.h>
 #include <fcntl.h>

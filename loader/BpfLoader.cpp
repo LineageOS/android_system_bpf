@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LOG_TAG
-#define LOG_TAG "bpfloader"
-#endif
+#define LOG_TAG "BpfLoader"
 
 #include <arpa/inet.h>
 #include <dirent.h>
