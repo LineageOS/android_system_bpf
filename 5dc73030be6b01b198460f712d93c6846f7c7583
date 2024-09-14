@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c2ae0f25_45c853b1",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 31504
+      },
+      "writtenOn": "2024-09-14T06:59:46Z",
+      "side": 1,
+      "message": "FYI: if I recall correctly I had to later change both these 4.14+ checks to 4.15+ in mainline NetBpfLoad.",
+      "revId": "5dc73030be6b01b198460f712d93c6846f7c7583",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
