@@ -84,6 +84,7 @@ rust_defaults {
     rustlibs: [
         "libbpf_android_bindgen",
         "libandroid_bpfprogs_flags",
+        "libbackstage_power_flags_rust",
         "libandroid_ids",
         "libandroid_logger",
         "libanyhow",
@@ -110,6 +111,13 @@ rust_binary {
         "dmabufIter.bpf",
         "bpfLockContention.bpf",
     ],
+    arch: {
+        x86_64: {
+            required: [
+                "cyclePerUid.bpf",
+            ],
+        },
+    },
     product_variables: {
         debuggable: {
             required: [
