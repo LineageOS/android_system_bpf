@@ -113,11 +113,21 @@ rust_binary {
     ],
     rustlibs: [
         "libbpf_android_bindgen",
+        "libandroid_ids",
+        "libandroid_logger",
+        "libanyhow",
+        "liblog_rust",
+        "liblibbpf_rs",
+        "liblibc",
     ],
-    required: [
-        "timeInState.o",
-    ],
-
+    required: [] + select(release_flag("RELEASE_BPF_ENABLE_LIBBPF"), {
+        true: [
+            "timeInState.bpf",
+        ],
+        default: [
+            "timeInState.o",
+        ],
+    }),
     product_variables: {
         debuggable: {
             required: [

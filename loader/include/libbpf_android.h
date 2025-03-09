@@ -53,13 +53,6 @@ void createBpfFsSubDirectories();
 void legacyBpfLoader();
 __noreturn void execNetBpfLoadDone();
 
-// For logging from rust
-void logVerbose(const char* msg);
-void logDebug(const char* msg);
-void logInfo(const char* msg);
-void logWarn(const char* msg);
-void logError(const char* msg);
-
 #ifdef __cplusplus
 }  // extern C
 #endif

@@ -1034,23 +1034,3 @@ void execNetBpfLoadDone() {
     ALOGE("FATAL: execve(): %d[%s]", errno, strerror(errno));
     exit(122);
 }
-
-void logVerbose(const char* msg) {
-    ALOGV("%s", msg);
-}
-
-void logDebug(const char* msg) {
-    ALOGD("%s", msg);
-}
-
-void logInfo(const char* msg) {
-    ALOGI("%s", msg);
-}
-
-void logWarn(const char* msg) {
-    ALOGW("%s", msg);
-}
-
-void logError(const char* msg) {
-    ALOGE("%s", msg);
-}
