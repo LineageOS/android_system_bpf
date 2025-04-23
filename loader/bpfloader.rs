@@ -16,9 +16,6 @@
 
 //! BPF loader for system and vendor applications
 
-// Enable dead_code until feature flag is removed.
-#![cfg_attr(not(enable_libbpf), allow(dead_code))]
-
 use android_ids::{AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
@@ -261,7 +258,6 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[cfg(enable_libbpf)]
 fn load_libbpf_progs() {
     info!("Loading libbpf programs");
     for file_desc in FILE_ARR {
@@ -273,12 +269,6 @@ fn load_libbpf_progs() {
             }
         };
     }
-}
-
-#[cfg(not(enable_libbpf))]
-fn load_libbpf_progs() {
-    // Empty stub for feature flag disabled case
-    info!("Loading libbpf programs DISABLED");
 }
 
 fn main() {
