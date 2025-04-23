@@ -19,9 +19,9 @@
 use android_ids::{AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
-use libbpf_rs::{MapCore, ObjectBuilder};
+use libbpf_rs::{set_print, MapCore, ObjectBuilder, PrintLevel};
 use libc::{mode_t, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR};
-use log::{debug, error, info, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use std::{
     cmp::max,
     env, fs,
@@ -116,6 +116,17 @@ impl BpfKmsgLogger {
             kmsg_writer: Arc::new(Mutex::new(writer)),
             a_logger: AndroidLogger::new(log_config),
         }))
+    }
+}
+
+fn libbpf_print(level: PrintLevel, mut msg: String) {
+    if msg.ends_with('\n') {
+        msg.pop();
+    }
+    match level {
+        PrintLevel::Debug => debug!("{}", msg),
+        PrintLevel::Info => info!("{}", msg),
+        PrintLevel::Warn => warn!("{}", msg),
     }
 }
 
@@ -284,6 +295,9 @@ fn main() {
     panic::set_hook(Box::new(|panic_info| {
         error!("{}", panic_info);
     }));
+
+    // Enable logging from libbpf
+    set_print(Some((PrintLevel::Debug, libbpf_print)));
 
     load_libbpf_progs();
     info!("Loading legacy BPF progs");
