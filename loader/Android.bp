@@ -104,10 +104,6 @@ cc_test {
 
 rust_binary {
     name: "bpfloader",
-    cfgs: select(release_flag("RELEASE_BPF_ENABLE_LIBBPF"), {
-        true: ["enable_libbpf"],
-        default: [],
-    }),
     srcs: [
         "bpfloader.rs",
     ],
@@ -120,14 +116,9 @@ rust_binary {
         "liblibbpf_rs",
         "liblibc",
     ],
-    required: [] + select(release_flag("RELEASE_BPF_ENABLE_LIBBPF"), {
-        true: [
-            "timeInState.bpf",
-        ],
-        default: [
-            "timeInState.o",
-        ],
-    }),
+    required: [
+        "timeInState.bpf",
+    ],
     product_variables: {
         debuggable: {
             required: [
