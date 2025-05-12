@@ -40,6 +40,24 @@
 #define DEFINE_BPF_MAP_GRO(the_map, TYPE, KeyType, ValueType, num_entries, gid) \
     DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)
 
+#define DEFINE_BPF_RINGBUF(the_map, ValueType, num_entries, usr, grp, md)              \
+    struct {                                                                           \
+        __uint(type, BPF_MAP_TYPE_RINGBUF);                                            \
+        __uint(max_entries, num_entries);                                              \
+    } the_map SEC(".maps");                                                            \
+                                                                                       \
+    static inline __always_inline __unused int bpf_##the_map##_output(ValueType* v) {  \
+        return bpf_ringbuf_output(&the_map, v, sizeof(*v), 0);                         \
+    };                                                                                 \
+                                                                                       \
+    static inline __always_inline __unused ValueType* bpf_##the_map##_reserve() {      \
+        return bpf_ringbuf_reserve(&the_map, sizeof(ValueType), 0);                    \
+    }                                                                                  \
+                                                                                       \
+    static inline __always_inline __unused void bpf_##the_map##_submit(ValueType* v) { \
+        bpf_ringbuf_submit(v, 0);                                                      \
+    }
+
 #define DEFINE_BPF_PROG(SECTION_NAME, prog_uid, prog_gid, the_prog) \
     SEC(SECTION_NAME)                                               \
     int the_prog
