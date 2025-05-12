@@ -18,6 +18,7 @@
 #define __always_inline __attribute__((__always_inline__))
 
 #include <linux/bpf.h>
+#include <sys/cdefs.h>
 
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)               \
     struct {                                                                                   \

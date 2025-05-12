@@ -31,3 +31,11 @@ bpf {
     name: "bpfRingbufProg.o",
     srcs: ["bpfRingbufProg.c"],
 }
+
+libbpf_prog {
+    name: "bpfRingbufProg.bpf",
+    srcs: ["bpfRingbufProg.c"],
+    header_libs: [
+        "android_bpf_defs",
+    ],
+}

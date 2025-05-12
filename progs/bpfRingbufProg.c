@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
+// Because include_dirs is not allowed under system/bpf, include
+// <android_bpf_defs.h> only if the code is built for libbpf_prog target.
+#ifdef ENABLE_LIBBPF
+#include <android_bpf_defs.h>
+#else
 #include "bpf_helpers.h"
+#endif
 
 // This can't be easily changed since the program is loaded on boot and may be
 // run against tests at a slightly different version.
