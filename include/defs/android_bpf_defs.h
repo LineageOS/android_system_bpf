@@ -44,6 +44,9 @@
     SEC(SECTION_NAME)                                               \
     int the_prog
 
+#define DEFINE_BPF_PROG_KVER(SECTION_NAME, prog_uid, prog_gid, the_prog, kver) \
+    DEFINE_BPF_PROG(SECTION_NAME, prog_uid, prog_gid, the_prog)
+
 #define LICENSE(NAME) char _license[] SEC("license") = (NAME)
 
 #else  // LIBBPF DISABLED
