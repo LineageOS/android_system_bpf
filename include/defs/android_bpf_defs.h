@@ -11,6 +11,14 @@
 #endif  // USE_VMLINUX
 #include <bpf/bpf_helpers.h>
 
+// bpf_helpers.h defines __always_inline using "inline __attribute__((always_inline))".
+// To prevent potential "duplicate 'inline' declaration" issues depending on the include order,
+// redefine using the cdefs.h definition of __always_inline.
+#undef __always_inline
+#define __always_inline __attribute__((__always_inline__))
+
+#include <linux/bpf.h>
+
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)               \
     struct {                                                                                   \
         __uint(type, BPF_MAP_TYPE_##TYPE);                                                     \
