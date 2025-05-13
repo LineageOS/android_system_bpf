@@ -141,6 +141,10 @@ struct ProgDesc {
 
 struct BpfFileDesc {
     filename: &'static str,
+    // The directory where the BPF file is located.
+    dir: &'static str,
+    // Maps and Progs are pinned under /sys/fs/bpf/<prefix>.
+    prefix: &'static str,
     // Warning: setting this to 'true' will cause the system to boot loop if there are any issues
     // loading the bpf program.
     critical: bool,
@@ -157,6 +161,8 @@ const PERM_UGR: mode_t = S_IRUSR | S_IRGRP;
 
 const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     filename: "timeInState.bpf",
+    dir: "/etc/bpf/",
+    prefix: "",
     critical: false,
     owner: AID_ROOT,
     group: AID_SYSTEM,
@@ -186,7 +192,7 @@ const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
 
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
-    let filepath = Path::new("/etc/bpf/").join(file_desc.filename);
+    let filepath = Path::new(file_desc.dir).join(file_desc.filename);
     ensure!(filepath.exists(), "File not found {}", filepath.display());
     let filename =
         filepath.file_stem().ok_or_else(|| anyhow!("Failed to parse stem from filename"))?;
@@ -196,7 +202,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     let open_file = ob.open_file(&filepath)?;
     let mut loaded_file = open_file.load()?;
 
-    let bpffs_path = "/sys/fs/bpf/".to_owned();
+    let bpffs_path = "/sys/fs/bpf/".to_owned() + file_desc.prefix;
 
     for mut map in loaded_file.maps_mut() {
         let mut desc_found = false;
