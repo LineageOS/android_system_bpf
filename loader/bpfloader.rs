@@ -20,7 +20,7 @@ use android_ids::{AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
 use libbpf_rs::{set_print, MapCore, ObjectBuilder, PrintLevel};
-use libc::{mode_t, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR};
+use libc::{mode_t, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR};
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use std::{
     cmp::max,
@@ -190,6 +190,22 @@ const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     ],
 }];
 
+fn create_dir(dir_path: &Path) -> Result<(), anyhow::Error> {
+    if dir_path.exists() {
+        return Ok(());
+    }
+    fs::create_dir(dir_path)
+        .map_err(|e| anyhow!("Failed to create {}: {e}", dir_path.display()))?;
+    // The cast is not unnecessary on all platforms.
+    #[allow(clippy::unnecessary_cast)]
+    fs::set_permissions(
+        dir_path,
+        Permissions::from_mode((S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO) as u32),
+    )
+    .map_err(|e| anyhow!("Failed to set permissions for {}: {e}", dir_path.display()))?;
+    Ok(())
+}
+
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
     let filepath = Path::new(file_desc.dir).join(file_desc.filename);
@@ -203,6 +219,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     let mut loaded_file = open_file.load()?;
 
     let bpffs_path = "/sys/fs/bpf/".to_owned() + file_desc.prefix;
+    create_dir(Path::new(&bpffs_path))?;
 
     for mut map in loaded_file.maps_mut() {
         let mut desc_found = false;
