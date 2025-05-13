@@ -77,6 +77,11 @@
 #define LICENSE(NAME) char _license[] SEC("license") = (NAME)
 #define CRITICAL(NAME)
 
+// LLVM eBPF builtins: they directly generate BPF_LD_ABS/BPF_LD_IND (skb may be ignored?)
+unsigned long long load_byte(void* skb, unsigned long long off) asm("llvm.bpf.load.byte");
+unsigned long long load_half(void* skb, unsigned long long off) asm("llvm.bpf.load.half");
+unsigned long long load_word(void* skb, unsigned long long off) asm("llvm.bpf.load.word");
+
 #else  // LIBBPF DISABLED
 
 #include <bpf_helpers.h>
