@@ -144,27 +144,31 @@ fn libbpf_print(level: PrintLevel, mut msg: String) {
 struct MapDesc {
     name: &'static str,
     perms: mode_t,
+    owner: u32,
+    group: u32,
     // Map is loaded if kernel_version() is >= min_kver and < max_kver
     min_kver: u32,
     max_kver: u32,
 }
 
 impl MapDesc {
-    pub const fn new(name: &'static str, perms: mode_t) -> Self {
-        MapDesc { name, perms, min_kver: KVER_NONE, max_kver: KVER_INF }
+    pub const fn new(name: &'static str, perms: mode_t, group: u32) -> Self {
+        MapDesc { name, perms, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
     }
 }
 
 struct ProgDesc {
     name: &'static str,
+    owner: u32,
+    group: u32,
     // Prog is loaded if kernel_version() is >= min_kver and < max_kver
     min_kver: u32,
     max_kver: u32,
 }
 
 impl ProgDesc {
-    pub const fn new(name: &'static str) -> Self {
-        ProgDesc { name, min_kver: KVER_NONE, max_kver: KVER_INF }
+    pub const fn new(name: &'static str, group: u32) -> Self {
+        ProgDesc { name, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
     }
 }
 
@@ -177,8 +181,6 @@ struct BpfFileDesc {
     // Warning: setting this to 'true' will cause the system to boot loop if there are any issues
     // loading the bpf program.
     critical: bool,
-    owner: u32,
-    group: u32,
     maps: &'static [MapDesc],
     progs: &'static [ProgDesc],
 }
@@ -193,29 +195,27 @@ const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     dir: "/etc/bpf/",
     prefix: "",
     critical: false,
-    owner: AID_ROOT,
-    group: AID_SYSTEM,
     maps: &[
-        MapDesc::new("cpu_last_pid_map", PERM_GWO),
-        MapDesc::new("cpu_last_update_map", PERM_GWO),
-        MapDesc::new("cpu_policy_map", PERM_GWO),
-        MapDesc::new("freq_to_idx_map", PERM_GWO),
-        MapDesc::new("nr_active_map", PERM_GWO),
-        MapDesc::new("pid_task_aggregation_map", PERM_GWO),
-        MapDesc::new("pid_time_in_state_map", PERM_GRO),
-        MapDesc::new("pid_tracked_hash_map", PERM_GWO),
-        MapDesc::new("pid_tracked_map", PERM_GWO),
-        MapDesc::new("policy_freq_idx_map", PERM_GWO),
-        MapDesc::new("policy_nr_active_map", PERM_GWO),
-        MapDesc::new("total_time_in_state_map", PERM_GRW),
-        MapDesc::new("uid_concurrent_times_map", PERM_GRW),
-        MapDesc::new("uid_last_update_map", PERM_GRW),
-        MapDesc::new("uid_time_in_state_map", PERM_GRW),
+        MapDesc::new("cpu_last_pid_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("cpu_last_update_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("cpu_policy_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("freq_to_idx_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("nr_active_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("pid_task_aggregation_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("pid_time_in_state_map", PERM_GRO, AID_SYSTEM),
+        MapDesc::new("pid_tracked_hash_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("pid_tracked_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("policy_freq_idx_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("policy_nr_active_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("total_time_in_state_map", PERM_GRW, AID_SYSTEM),
+        MapDesc::new("uid_concurrent_times_map", PERM_GRW, AID_SYSTEM),
+        MapDesc::new("uid_last_update_map", PERM_GRW, AID_SYSTEM),
+        MapDesc::new("uid_time_in_state_map", PERM_GRW, AID_SYSTEM),
     ],
     progs: &[
-        ProgDesc::new("tracepoint_power_cpu_frequency"),
-        ProgDesc::new("tracepoint_sched_sched_process_free"),
-        ProgDesc::new("tracepoint_sched_sched_switch"),
+        ProgDesc::new("tracepoint_power_cpu_frequency", AID_SYSTEM),
+        ProgDesc::new("tracepoint_sched_sched_process_free", AID_SYSTEM),
+        ProgDesc::new("tracepoint_sched_sched_switch", AID_SYSTEM),
     ],
 }];
 
@@ -323,12 +323,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                         )
                     },
                 )?;
-                chown(pinpath, Some(file_desc.owner), Some(file_desc.group)).map_err(|e| {
+                chown(pinpath, Some(map_desc.owner), Some(map_desc.group)).map_err(|e| {
                     anyhow!(
                         "Failed to chown {} with owner: {} group: {} err: {e}",
                         pinpath.display(),
-                        file_desc.owner,
-                        file_desc.group
+                        map_desc.owner,
+                        map_desc.group
                     )
                 })?;
                 break;
@@ -364,12 +364,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                         )
                     },
                 )?;
-                chown(pinpath, Some(file_desc.owner), Some(file_desc.group)).map_err(|e| {
+                chown(pinpath, Some(prog_desc.owner), Some(prog_desc.group)).map_err(|e| {
                     anyhow!(
                         "Failed to chown {} with owner: {} group: {} err: {e}",
                         pinpath.display(),
-                        file_desc.owner,
-                        file_desc.group
+                        prog_desc.owner,
+                        prog_desc.group
                     )
                 })?;
                 break;
