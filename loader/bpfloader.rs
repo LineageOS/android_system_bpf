@@ -34,6 +34,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+const fn kver(a: u32, b: u32, c: u32) -> u32 {
+    (a << 24) + (b << 16) + c
+}
+
+const KVER_NONE: u32 = kver(0, 0, 0);
+const KVER_INF: u32 = 0xFFFFFFFF;
+
 enum KernelLevel {
     // Commented out unused due to rust complaining...
     // EMERG = 0,
@@ -130,13 +137,33 @@ fn libbpf_print(level: PrintLevel, mut msg: String) {
     }
 }
 
+#[allow(dead_code)]
 struct MapDesc {
     name: &'static str,
     perms: mode_t,
+    // Map is loaded if kernel_version() is >= min_kver and < max_kver
+    min_kver: u32,
+    max_kver: u32,
 }
 
+impl MapDesc {
+    pub const fn new(name: &'static str, perms: mode_t) -> Self {
+        MapDesc { name, perms, min_kver: KVER_NONE, max_kver: KVER_INF }
+    }
+}
+
+#[allow(dead_code)]
 struct ProgDesc {
     name: &'static str,
+    // Prog is loaded if kernel_version() is >= min_kver and < max_kver
+    min_kver: u32,
+    max_kver: u32,
+}
+
+impl ProgDesc {
+    pub const fn new(name: &'static str) -> Self {
+        ProgDesc { name, min_kver: KVER_NONE, max_kver: KVER_INF }
+    }
 }
 
 struct BpfFileDesc {
@@ -167,26 +194,26 @@ const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     owner: AID_ROOT,
     group: AID_SYSTEM,
     maps: &[
-        MapDesc { name: "cpu_last_pid_map", perms: PERM_GWO },
-        MapDesc { name: "cpu_last_update_map", perms: PERM_GWO },
-        MapDesc { name: "cpu_policy_map", perms: PERM_GWO },
-        MapDesc { name: "freq_to_idx_map", perms: PERM_GWO },
-        MapDesc { name: "nr_active_map", perms: PERM_GWO },
-        MapDesc { name: "pid_task_aggregation_map", perms: PERM_GWO },
-        MapDesc { name: "pid_time_in_state_map", perms: PERM_GRO },
-        MapDesc { name: "pid_tracked_hash_map", perms: PERM_GWO },
-        MapDesc { name: "pid_tracked_map", perms: PERM_GWO },
-        MapDesc { name: "policy_freq_idx_map", perms: PERM_GWO },
-        MapDesc { name: "policy_nr_active_map", perms: PERM_GWO },
-        MapDesc { name: "total_time_in_state_map", perms: PERM_GRW },
-        MapDesc { name: "uid_concurrent_times_map", perms: PERM_GRW },
-        MapDesc { name: "uid_last_update_map", perms: PERM_GRW },
-        MapDesc { name: "uid_time_in_state_map", perms: PERM_GRW },
+        MapDesc::new("cpu_last_pid_map", PERM_GWO),
+        MapDesc::new("cpu_last_update_map", PERM_GWO),
+        MapDesc::new("cpu_policy_map", PERM_GWO),
+        MapDesc::new("freq_to_idx_map", PERM_GWO),
+        MapDesc::new("nr_active_map", PERM_GWO),
+        MapDesc::new("pid_task_aggregation_map", PERM_GWO),
+        MapDesc::new("pid_time_in_state_map", PERM_GRO),
+        MapDesc::new("pid_tracked_hash_map", PERM_GWO),
+        MapDesc::new("pid_tracked_map", PERM_GWO),
+        MapDesc::new("policy_freq_idx_map", PERM_GWO),
+        MapDesc::new("policy_nr_active_map", PERM_GWO),
+        MapDesc::new("total_time_in_state_map", PERM_GRW),
+        MapDesc::new("uid_concurrent_times_map", PERM_GRW),
+        MapDesc::new("uid_last_update_map", PERM_GRW),
+        MapDesc::new("uid_time_in_state_map", PERM_GRW),
     ],
     progs: &[
-        ProgDesc { name: "tracepoint_power_cpu_frequency" },
-        ProgDesc { name: "tracepoint_sched_sched_process_free" },
-        ProgDesc { name: "tracepoint_sched_sched_switch" },
+        ProgDesc::new("tracepoint_power_cpu_frequency"),
+        ProgDesc::new("tracepoint_sched_sched_process_free"),
+        ProgDesc::new("tracepoint_sched_sched_switch"),
     ],
 }];
 
