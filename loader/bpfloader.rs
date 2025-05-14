@@ -20,8 +20,12 @@ use android_ids::{AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
 use libbpf_rs::{set_print, MapCore, ObjectBuilder, PrintLevel};
-use libc::{mode_t, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR};
+use libc::{
+    mode_t, uname, utsname, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR,
+};
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use std::ffi::CStr;
+use std::mem::MaybeUninit;
 use std::{
     cmp::max,
     env, fs,
@@ -137,7 +141,6 @@ fn libbpf_print(level: PrintLevel, mut msg: String) {
     }
 }
 
-#[allow(dead_code)]
 struct MapDesc {
     name: &'static str,
     perms: mode_t,
@@ -152,7 +155,6 @@ impl MapDesc {
     }
 }
 
-#[allow(dead_code)]
 struct ProgDesc {
     name: &'static str,
     // Prog is loaded if kernel_version() is >= min_kver and < max_kver
@@ -233,6 +235,49 @@ fn create_dir(dir_path: &Path) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn leading_number(str: &str) -> u32 {
+    let mut num_str = String::new();
+    for c in str.chars() {
+        if c.is_ascii_digit() {
+            num_str.push(c);
+        } else {
+            break;
+        }
+    }
+    num_str.parse().unwrap_or(0)
+}
+
+// Parses a kernel release string into a tuple of (major, minor, sub) version numbers.
+// Examples:
+// - "6.1.128-android14" returns (6, 1, 128)
+// - "6.1.128android14" returns (6, 1, 128)
+// - "6.1" returns (6, 1, 0)
+fn parse_release(release: &str) -> (u32, u32, u32) {
+    let mut iter = release.splitn(3, '.');
+    let major = leading_number(iter.next().unwrap_or(""));
+    let minor = leading_number(iter.next().unwrap_or(""));
+    let sub = leading_number(iter.next().unwrap_or(""));
+    (major, minor, sub)
+}
+
+fn kernel_version() -> Result<u32, anyhow::Error> {
+    let mut buf: MaybeUninit<utsname> = MaybeUninit::zeroed();
+    // SAFETY: If uname returns 0, the buf should be properly initialized.
+    if unsafe { uname(buf.as_mut_ptr()) } != 0 {
+        return Err(anyhow!("Failed to call uname system call."));
+    }
+    // SAFETY: `uname` returned 0, so the buf should be properly initialized.
+    let buf = unsafe { buf.assume_init() };
+    // SAFETY: buf.release is part of the utsname struct populated by uname.
+    let release_cstr = unsafe { CStr::from_ptr(buf.release.as_ptr()) };
+    let release = release_cstr
+        .to_str()
+        .map_err(|e| anyhow!("utsname release string is not valid UTF-8: {}", e))?;
+
+    let (major, minor, sub) = parse_release(release);
+    Ok(kver(major, minor, sub))
+}
+
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
     let filepath = Path::new(file_desc.dir).join(file_desc.filename);
@@ -248,6 +293,8 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     let bpffs_path = "/sys/fs/bpf/".to_owned() + file_desc.prefix;
     create_dir(Path::new(&bpffs_path))?;
 
+    let kvers = kernel_version()?;
+
     for mut map in loaded_file.maps_mut() {
         let mut desc_found = false;
         let name =
@@ -256,6 +303,13 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         for map_desc in file_desc.maps {
             if map_desc.name == name {
                 desc_found = true;
+                if kvers < map_desc.min_kver || kvers >= map_desc.max_kver {
+                    info!(
+                        "skipping map {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
+                        name, map_desc.min_kver, map_desc.max_kver, kvers
+                    );
+                    continue;
+                }
                 let pinpath_str = bpffs_path.clone() + "map_" + filename + "_" + &name;
                 let pinpath = Path::new(&pinpath_str);
                 debug!("Pinning: {}", pinpath.display());
@@ -291,6 +345,13 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         for prog_desc in file_desc.progs {
             if prog_desc.name == name {
                 desc_found = true;
+                if kvers < prog_desc.min_kver || kvers >= prog_desc.max_kver {
+                    info!(
+                        "skipping program {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
+                        name, prog_desc.min_kver, prog_desc.max_kver, kvers
+                    );
+                    continue;
+                }
                 let pinpath_str = bpffs_path.clone() + "prog_" + filename + "_" + &name;
                 let pinpath = Path::new(&pinpath_str);
                 debug!("Pinning: {}", pinpath.display());
