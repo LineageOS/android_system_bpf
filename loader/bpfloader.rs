@@ -423,3 +423,20 @@ fn main() {
         bpf_android_bindgen::execNetBpfLoadDone();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_parse_release() {
+        assert_eq!(parse_release("6.1.128-android14-11-g213d628eb429-ab13297919"), (6, 1, 128));
+        assert_eq!(parse_release("6.1.128_android14"), (6, 1, 128));
+        assert_eq!(parse_release("6.1.128.4"), (6, 1, 128));
+        assert_eq!(parse_release("6.1.android14"), (6, 1, 0));
+        assert_eq!(parse_release("6.1-android14"), (6, 1, 0));
+        assert_eq!(parse_release("6.1"), (6, 1, 0));
+        assert_eq!(parse_release("6"), (6, 0, 0));
+        assert_eq!(parse_release("android14"), (0, 0, 0));
+    }
+}
