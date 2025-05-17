@@ -20,8 +20,12 @@ use android_ids::{AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
 use libbpf_rs::{set_print, MapCore, ObjectBuilder, PrintLevel};
-use libc::{mode_t, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR};
+use libc::{
+    mode_t, uname, utsname, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR,
+};
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use std::ffi::CStr;
+use std::mem::MaybeUninit;
 use std::{
     cmp::max,
     env, fs,
@@ -33,6 +37,13 @@ use std::{
     path::Path,
     sync::{Arc, Mutex},
 };
+
+const fn kver(a: u32, b: u32, c: u32) -> u32 {
+    (a << 24) + (b << 16) + c
+}
+
+const KVER_NONE: u32 = kver(0, 0, 0);
+const KVER_INF: u32 = 0xFFFFFFFF;
 
 enum KernelLevel {
     // Commented out unused due to rust complaining...
@@ -133,19 +144,43 @@ fn libbpf_print(level: PrintLevel, mut msg: String) {
 struct MapDesc {
     name: &'static str,
     perms: mode_t,
+    owner: u32,
+    group: u32,
+    // Map is loaded if kernel_version() is >= min_kver and < max_kver
+    min_kver: u32,
+    max_kver: u32,
+}
+
+impl MapDesc {
+    pub const fn new(name: &'static str, perms: mode_t, group: u32) -> Self {
+        MapDesc { name, perms, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
+    }
 }
 
 struct ProgDesc {
     name: &'static str,
+    owner: u32,
+    group: u32,
+    // Prog is loaded if kernel_version() is >= min_kver and < max_kver
+    min_kver: u32,
+    max_kver: u32,
+}
+
+impl ProgDesc {
+    pub const fn new(name: &'static str, group: u32) -> Self {
+        ProgDesc { name, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
+    }
 }
 
 struct BpfFileDesc {
     filename: &'static str,
+    // The directory where the BPF file is located.
+    dir: &'static str,
+    // Maps and Progs are pinned under /sys/fs/bpf/<prefix>.
+    prefix: &'static str,
     // Warning: setting this to 'true' will cause the system to boot loop if there are any issues
     // loading the bpf program.
     critical: bool,
-    owner: u32,
-    group: u32,
     maps: &'static [MapDesc],
     progs: &'static [ProgDesc],
 }
@@ -157,36 +192,95 @@ const PERM_UGR: mode_t = S_IRUSR | S_IRGRP;
 
 const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     filename: "timeInState.bpf",
+    dir: "/etc/bpf/",
+    prefix: "",
     critical: false,
-    owner: AID_ROOT,
-    group: AID_SYSTEM,
     maps: &[
-        MapDesc { name: "cpu_last_pid_map", perms: PERM_GWO },
-        MapDesc { name: "cpu_last_update_map", perms: PERM_GWO },
-        MapDesc { name: "cpu_policy_map", perms: PERM_GWO },
-        MapDesc { name: "freq_to_idx_map", perms: PERM_GWO },
-        MapDesc { name: "nr_active_map", perms: PERM_GWO },
-        MapDesc { name: "pid_task_aggregation_map", perms: PERM_GWO },
-        MapDesc { name: "pid_time_in_state_map", perms: PERM_GRO },
-        MapDesc { name: "pid_tracked_hash_map", perms: PERM_GWO },
-        MapDesc { name: "pid_tracked_map", perms: PERM_GWO },
-        MapDesc { name: "policy_freq_idx_map", perms: PERM_GWO },
-        MapDesc { name: "policy_nr_active_map", perms: PERM_GWO },
-        MapDesc { name: "total_time_in_state_map", perms: PERM_GRW },
-        MapDesc { name: "uid_concurrent_times_map", perms: PERM_GRW },
-        MapDesc { name: "uid_last_update_map", perms: PERM_GRW },
-        MapDesc { name: "uid_time_in_state_map", perms: PERM_GRW },
+        MapDesc::new("cpu_last_pid_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("cpu_last_update_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("cpu_policy_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("freq_to_idx_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("nr_active_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("pid_task_aggregation_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("pid_time_in_state_map", PERM_GRO, AID_SYSTEM),
+        MapDesc::new("pid_tracked_hash_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("pid_tracked_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("policy_freq_idx_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("policy_nr_active_map", PERM_GWO, AID_SYSTEM),
+        MapDesc::new("total_time_in_state_map", PERM_GRW, AID_SYSTEM),
+        MapDesc::new("uid_concurrent_times_map", PERM_GRW, AID_SYSTEM),
+        MapDesc::new("uid_last_update_map", PERM_GRW, AID_SYSTEM),
+        MapDesc::new("uid_time_in_state_map", PERM_GRW, AID_SYSTEM),
     ],
     progs: &[
-        ProgDesc { name: "tracepoint_power_cpu_frequency" },
-        ProgDesc { name: "tracepoint_sched_sched_process_free" },
-        ProgDesc { name: "tracepoint_sched_sched_switch" },
+        ProgDesc::new("tracepoint_power_cpu_frequency", AID_SYSTEM),
+        ProgDesc::new("tracepoint_sched_sched_process_free", AID_SYSTEM),
+        ProgDesc::new("tracepoint_sched_sched_switch", AID_SYSTEM),
     ],
 }];
 
+fn create_dir(dir_path: &Path) -> Result<(), anyhow::Error> {
+    if dir_path.exists() {
+        return Ok(());
+    }
+    fs::create_dir(dir_path)
+        .map_err(|e| anyhow!("Failed to create {}: {e}", dir_path.display()))?;
+    // The cast is not unnecessary on all platforms.
+    #[allow(clippy::unnecessary_cast)]
+    fs::set_permissions(
+        dir_path,
+        Permissions::from_mode((S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO) as u32),
+    )
+    .map_err(|e| anyhow!("Failed to set permissions for {}: {e}", dir_path.display()))?;
+    Ok(())
+}
+
+fn leading_number(str: &str) -> u32 {
+    let mut num_str = String::new();
+    for c in str.chars() {
+        if c.is_ascii_digit() {
+            num_str.push(c);
+        } else {
+            break;
+        }
+    }
+    num_str.parse().unwrap_or(0)
+}
+
+// Parses a kernel release string into a tuple of (major, minor, sub) version numbers.
+// Examples:
+// - "6.1.128-android14" returns (6, 1, 128)
+// - "6.1.128android14" returns (6, 1, 128)
+// - "6.1" returns (6, 1, 0)
+fn parse_release(release: &str) -> (u32, u32, u32) {
+    let mut iter = release.splitn(3, '.');
+    let major = leading_number(iter.next().unwrap_or(""));
+    let minor = leading_number(iter.next().unwrap_or(""));
+    let sub = leading_number(iter.next().unwrap_or(""));
+    (major, minor, sub)
+}
+
+fn kernel_version() -> Result<u32, anyhow::Error> {
+    let mut buf: MaybeUninit<utsname> = MaybeUninit::zeroed();
+    // SAFETY: If uname returns 0, the buf should be properly initialized.
+    if unsafe { uname(buf.as_mut_ptr()) } != 0 {
+        return Err(anyhow!("Failed to call uname system call."));
+    }
+    // SAFETY: `uname` returned 0, so the buf should be properly initialized.
+    let buf = unsafe { buf.assume_init() };
+    // SAFETY: buf.release is part of the utsname struct populated by uname.
+    let release_cstr = unsafe { CStr::from_ptr(buf.release.as_ptr()) };
+    let release = release_cstr
+        .to_str()
+        .map_err(|e| anyhow!("utsname release string is not valid UTF-8: {}", e))?;
+
+    let (major, minor, sub) = parse_release(release);
+    Ok(kver(major, minor, sub))
+}
+
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
-    let filepath = Path::new("/etc/bpf/").join(file_desc.filename);
+    let filepath = Path::new(file_desc.dir).join(file_desc.filename);
     ensure!(filepath.exists(), "File not found {}", filepath.display());
     let filename =
         filepath.file_stem().ok_or_else(|| anyhow!("Failed to parse stem from filename"))?;
@@ -196,7 +290,10 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     let open_file = ob.open_file(&filepath)?;
     let mut loaded_file = open_file.load()?;
 
-    let bpffs_path = "/sys/fs/bpf/".to_owned();
+    let bpffs_path = "/sys/fs/bpf/".to_owned() + file_desc.prefix;
+    create_dir(Path::new(&bpffs_path))?;
+
+    let kvers = kernel_version()?;
 
     for mut map in loaded_file.maps_mut() {
         let mut desc_found = false;
@@ -206,6 +303,13 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         for map_desc in file_desc.maps {
             if map_desc.name == name {
                 desc_found = true;
+                if kvers < map_desc.min_kver || kvers >= map_desc.max_kver {
+                    info!(
+                        "skipping map {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
+                        name, map_desc.min_kver, map_desc.max_kver, kvers
+                    );
+                    continue;
+                }
                 let pinpath_str = bpffs_path.clone() + "map_" + filename + "_" + &name;
                 let pinpath = Path::new(&pinpath_str);
                 debug!("Pinning: {}", pinpath.display());
@@ -219,12 +323,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                         )
                     },
                 )?;
-                chown(pinpath, Some(file_desc.owner), Some(file_desc.group)).map_err(|e| {
+                chown(pinpath, Some(map_desc.owner), Some(map_desc.group)).map_err(|e| {
                     anyhow!(
                         "Failed to chown {} with owner: {} group: {} err: {e}",
                         pinpath.display(),
-                        file_desc.owner,
-                        file_desc.group
+                        map_desc.owner,
+                        map_desc.group
                     )
                 })?;
                 break;
@@ -241,6 +345,13 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         for prog_desc in file_desc.progs {
             if prog_desc.name == name {
                 desc_found = true;
+                if kvers < prog_desc.min_kver || kvers >= prog_desc.max_kver {
+                    info!(
+                        "skipping program {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
+                        name, prog_desc.min_kver, prog_desc.max_kver, kvers
+                    );
+                    continue;
+                }
                 let pinpath_str = bpffs_path.clone() + "prog_" + filename + "_" + &name;
                 let pinpath = Path::new(&pinpath_str);
                 debug!("Pinning: {}", pinpath.display());
@@ -253,12 +364,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                         )
                     },
                 )?;
-                chown(pinpath, Some(file_desc.owner), Some(file_desc.group)).map_err(|e| {
+                chown(pinpath, Some(prog_desc.owner), Some(prog_desc.group)).map_err(|e| {
                     anyhow!(
                         "Failed to chown {} with owner: {} group: {} err: {e}",
                         pinpath.display(),
-                        file_desc.owner,
-                        file_desc.group
+                        prog_desc.owner,
+                        prog_desc.group
                     )
                 })?;
                 break;
@@ -310,5 +421,22 @@ fn main() {
         bpf_android_bindgen::createBpfFsSubDirectories();
         bpf_android_bindgen::legacyBpfLoader();
         bpf_android_bindgen::execNetBpfLoadDone();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_parse_release() {
+        assert_eq!(parse_release("6.1.128-android14-11-g213d628eb429-ab13297919"), (6, 1, 128));
+        assert_eq!(parse_release("6.1.128_android14"), (6, 1, 128));
+        assert_eq!(parse_release("6.1.128.4"), (6, 1, 128));
+        assert_eq!(parse_release("6.1.android14"), (6, 1, 0));
+        assert_eq!(parse_release("6.1-android14"), (6, 1, 0));
+        assert_eq!(parse_release("6.1"), (6, 1, 0));
+        assert_eq!(parse_release("6"), (6, 0, 0));
+        assert_eq!(parse_release("android14"), (0, 0, 0));
     }
 }
