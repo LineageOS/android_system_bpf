@@ -190,32 +190,34 @@ const PERM_GRO: mode_t = S_IRUSR | S_IWUSR | S_IRGRP;
 const PERM_GWO: mode_t = S_IRUSR | S_IWUSR | S_IWGRP;
 const PERM_UGR: mode_t = S_IRUSR | S_IRGRP;
 
+const GID_SYSTEM: u32 = AID_SYSTEM;
+
 const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     filename: "timeInState.bpf",
     dir: "/etc/bpf/",
     prefix: "",
     critical: false,
     maps: &[
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "cpu_last_pid_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "cpu_last_update_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "cpu_policy_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "freq_to_idx_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "nr_active_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "pid_task_aggregation_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GRO, "pid_time_in_state_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "pid_tracked_hash_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "pid_tracked_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "policy_freq_idx_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GWO, "policy_nr_active_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GRW, "total_time_in_state_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GRW, "uid_concurrent_times_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GRW, "uid_last_update_map"),
-        MapDesc::new(AID_SYSTEM, PERM_GRW, "uid_time_in_state_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_last_pid_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_last_update_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_policy_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "freq_to_idx_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "nr_active_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "pid_task_aggregation_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRO, "pid_time_in_state_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "pid_tracked_hash_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "pid_tracked_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "policy_freq_idx_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GWO, "policy_nr_active_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "total_time_in_state_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_concurrent_times_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_last_update_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_time_in_state_map"),
     ],
     progs: &[
-        ProgDesc::new(AID_SYSTEM, "tracepoint_power_cpu_frequency"),
-        ProgDesc::new(AID_SYSTEM, "tracepoint_sched_sched_process_free"),
-        ProgDesc::new(AID_SYSTEM, "tracepoint_sched_sched_switch"),
+        ProgDesc::new(GID_SYSTEM, "tracepoint_power_cpu_frequency"),
+        ProgDesc::new(GID_SYSTEM, "tracepoint_sched_sched_process_free"),
+        ProgDesc::new(GID_SYSTEM, "tracepoint_sched_sched_switch"),
     ],
 }];
 
