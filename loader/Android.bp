@@ -114,6 +114,7 @@ rust_defaults {
         "libanyhow",
         "liblog_rust",
         "liblibbpf_rs",
+        "liblibbpf_sys",
         "liblibc",
     ],
 }

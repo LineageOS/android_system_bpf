@@ -19,7 +19,11 @@
 use android_ids::{AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
-use libbpf_rs::{set_print, MapCore, ObjectBuilder, OpenObject, PrintLevel, ProgramType};
+use libbpf_rs::{
+    set_print, AsRawLibbpf, MapCore, ObjectBuilder, OpenObject, OpenProgramMut, PrintLevel,
+    ProgramType,
+};
+use libbpf_sys::bpf_program__set_type;
 use libc::{
     mode_t, uname, utsname, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR,
 };
@@ -221,12 +225,31 @@ const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     ],
 }];
 
+// TODO: Remove this code when fuse-bpf is upstreamed
+fn set_fuse_prog_type(prog: OpenProgramMut) -> Result<(), anyhow::Error> {
+    let path = Path::new("/sys/fs/fuse/bpf_prog_type_fuse");
+    let prog_type_str =
+        fs::read_to_string(path).map_err(|e| anyhow!("Failed to read fuse prog type: {e}"))?;
+    let prog_type = prog_type_str
+        .trim()
+        .parse::<u32>()
+        .map_err(|e| anyhow!("Failed to parse fuse prog type {prog_type_str}: {e}"))?;
+    // SAFETY: If the return value is 0, program type should be updated correctly.
+    // prog.set_prog_type can not be used because ProgramType does not contain BPF_PROG_TYPE_FUSE
+    if unsafe { bpf_program__set_type(prog.as_libbpf_object().as_ptr(), prog_type) } != 0 {
+        return Err(anyhow!("Failed to set fuse prog type {prog_type}"));
+    }
+    Ok(())
+}
+
 fn set_prog_types(open_file: &mut OpenObject) -> Result<(), anyhow::Error> {
     for mut prog in open_file.progs_mut() {
         let section_name =
             prog.section().to_str().ok_or_else(|| anyhow!("Failed to parse prog section name"))?;
         if section_name.starts_with("skfilter/") {
             prog.set_prog_type(ProgramType::SocketFilter);
+        } else if section_name.starts_with("fuse/") {
+            set_fuse_prog_type(prog)?;
         }
     }
     Ok(())
