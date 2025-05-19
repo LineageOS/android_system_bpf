@@ -152,7 +152,7 @@ struct MapDesc {
 }
 
 impl MapDesc {
-    pub const fn new(name: &'static str, perms: mode_t, group: u32) -> Self {
+    pub const fn new(group: u32, perms: mode_t, name: &'static str) -> Self {
         MapDesc { name, perms, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
     }
 }
@@ -167,7 +167,7 @@ struct ProgDesc {
 }
 
 impl ProgDesc {
-    pub const fn new(name: &'static str, group: u32) -> Self {
+    pub const fn new(group: u32, name: &'static str) -> Self {
         ProgDesc { name, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
     }
 }
@@ -196,26 +196,26 @@ const FILE_ARR: &[BpfFileDesc] = &[BpfFileDesc {
     prefix: "",
     critical: false,
     maps: &[
-        MapDesc::new("cpu_last_pid_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("cpu_last_update_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("cpu_policy_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("freq_to_idx_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("nr_active_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("pid_task_aggregation_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("pid_time_in_state_map", PERM_GRO, AID_SYSTEM),
-        MapDesc::new("pid_tracked_hash_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("pid_tracked_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("policy_freq_idx_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("policy_nr_active_map", PERM_GWO, AID_SYSTEM),
-        MapDesc::new("total_time_in_state_map", PERM_GRW, AID_SYSTEM),
-        MapDesc::new("uid_concurrent_times_map", PERM_GRW, AID_SYSTEM),
-        MapDesc::new("uid_last_update_map", PERM_GRW, AID_SYSTEM),
-        MapDesc::new("uid_time_in_state_map", PERM_GRW, AID_SYSTEM),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "cpu_last_pid_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "cpu_last_update_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "cpu_policy_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "freq_to_idx_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "nr_active_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "pid_task_aggregation_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GRO, "pid_time_in_state_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "pid_tracked_hash_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "pid_tracked_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "policy_freq_idx_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GWO, "policy_nr_active_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GRW, "total_time_in_state_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GRW, "uid_concurrent_times_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GRW, "uid_last_update_map"),
+        MapDesc::new(AID_SYSTEM, PERM_GRW, "uid_time_in_state_map"),
     ],
     progs: &[
-        ProgDesc::new("tracepoint_power_cpu_frequency", AID_SYSTEM),
-        ProgDesc::new("tracepoint_sched_sched_process_free", AID_SYSTEM),
-        ProgDesc::new("tracepoint_sched_sched_switch", AID_SYSTEM),
+        ProgDesc::new(AID_SYSTEM, "tracepoint_power_cpu_frequency"),
+        ProgDesc::new(AID_SYSTEM, "tracepoint_sched_sched_process_free"),
+        ProgDesc::new(AID_SYSTEM, "tracepoint_sched_sched_switch"),
     ],
 }];
 
