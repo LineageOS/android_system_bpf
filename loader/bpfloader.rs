@@ -317,7 +317,11 @@ fn kernel_version() -> Result<u32, anyhow::Error> {
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
     let filepath = Path::new(file_desc.dir).join(file_desc.filename);
-    ensure!(filepath.exists(), "File not found {}", filepath.display());
+    // TODO: Make this error once the BPF loader migration completes.
+    if !filepath.exists() {
+        info!("Skipping load of {} as it does not exist", filepath.display());
+        return Ok(());
+    }
     let filename =
         filepath.file_stem().ok_or_else(|| anyhow!("Failed to parse stem from filename"))?;
     let filename = filename.to_str().ok_or_else(|| anyhow!("Failed to parse filename"))?;
