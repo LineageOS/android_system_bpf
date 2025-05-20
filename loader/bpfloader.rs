@@ -343,6 +343,10 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         let name =
             map.name().to_str().ok_or_else(|| anyhow!("Failed to parse map name into UTF-8"))?;
         let name = String::from(name);
+        if name.ends_with(".rodata") {
+            // Skip pinning map for .rodata section.
+            continue;
+        }
         for map_desc in file_desc.maps {
             if map_desc.name == name {
                 desc_found = true;
