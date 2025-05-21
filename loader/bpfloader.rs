@@ -348,6 +348,23 @@ fn set_skip_loading(
         }
     }
 
+    for mut prog in open_file.progs_mut() {
+        let name =
+            prog.name().to_str().ok_or_else(|| anyhow!("Failed to parse prog name into UTF-8"))?;
+        for prog_desc in file_desc.progs {
+            if prog_desc.name == name {
+                if kvers < prog_desc.min_kver || kvers >= prog_desc.max_kver {
+                    info!(
+                        "skipping program {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
+                        name, prog_desc.min_kver, prog_desc.max_kver, kvers
+                    );
+                    prog.set_autoload(false);
+                }
+                break;
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -373,8 +390,6 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
 
     let bpffs_path = "/sys/fs/bpf/".to_owned() + file_desc.prefix;
     create_dir(Path::new(&bpffs_path))?;
-
-    let kvers = kernel_version()?;
 
     for mut map in loaded_file.maps_mut() {
         let mut desc_found = false;
@@ -430,11 +445,8 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         for prog_desc in file_desc.progs {
             if prog_desc.name == name {
                 desc_found = true;
-                if kvers < prog_desc.min_kver || kvers >= prog_desc.max_kver {
-                    info!(
-                        "skipping program {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
-                        name, prog_desc.min_kver, prog_desc.max_kver, kvers
-                    );
+                if !prog.autoload() {
+                    // This program is not loaded
                     continue;
                 }
                 let pinpath_str = bpffs_path.clone() + "prog_" + filename + "_" + &name;
