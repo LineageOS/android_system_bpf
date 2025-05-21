@@ -23,7 +23,7 @@ use libbpf_rs::{
     set_print, AsRawLibbpf, MapCore, ObjectBuilder, OpenObject, OpenProgramMut, PrintLevel,
     ProgramType,
 };
-use libbpf_sys::bpf_program__set_type;
+use libbpf_sys::{bpf_map__autocreate, bpf_program__set_type};
 use libc::{
     mode_t, uname, utsname, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR,
 };
@@ -325,6 +325,32 @@ fn kernel_version() -> Result<u32, anyhow::Error> {
     Ok(kver(major, minor, sub))
 }
 
+fn set_skip_loading(
+    open_file: &mut OpenObject,
+    file_desc: &BpfFileDesc,
+) -> Result<(), anyhow::Error> {
+    let kvers = kernel_version()?;
+
+    for mut map in open_file.maps_mut() {
+        let name =
+            map.name().to_str().ok_or_else(|| anyhow!("Failed to parse map name into UTF-8"))?;
+        for map_desc in file_desc.maps {
+            if map_desc.name == name {
+                if kvers < map_desc.min_kver || kvers >= map_desc.max_kver {
+                    info!(
+                        "skipping map {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
+                        name, map_desc.min_kver, map_desc.max_kver, kvers
+                    );
+                    map.set_autocreate(false)?;
+                }
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
     let filepath = Path::new(file_desc.dir).join(file_desc.filename);
@@ -342,6 +368,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     // libbpf's open_file attempts to infer the prog type based on the section name. But, some
     // section names are not recognized, so the program type must be set explicitly for them.
     set_prog_types(&mut open_file)?;
+    set_skip_loading(&mut open_file, file_desc)?;
     let mut loaded_file = open_file.load()?;
 
     let bpffs_path = "/sys/fs/bpf/".to_owned() + file_desc.prefix;
@@ -361,13 +388,13 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         for map_desc in file_desc.maps {
             if map_desc.name == name {
                 desc_found = true;
-                if kvers < map_desc.min_kver || kvers >= map_desc.max_kver {
-                    info!(
-                        "skipping map {} min_kver:{:x} max_kver:{:x} kvers:{:x}",
-                        name, map_desc.min_kver, map_desc.max_kver, kvers
-                    );
+                // SAFETY: bpf_map__autocreate just returns the field value of libbpf struct
+                let autocreate = unsafe { bpf_map__autocreate(map.as_libbpf_object().as_ptr()) };
+                if !autocreate {
+                    // This map is not loaded
                     continue;
                 }
+
                 let pinpath_str = bpffs_path.clone() + "map_" + filename + "_" + &name;
                 let pinpath = Path::new(&pinpath_str);
                 debug!("Pinning: {}", pinpath.display());
