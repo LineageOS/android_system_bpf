@@ -16,7 +16,7 @@
 
 //! BPF loader for system and vendor applications
 
-use android_ids::{AID_MEDIA_RW, AID_ROOT, AID_SYSTEM};
+use android_ids::{AID_GRAPHICS, AID_MEDIA_RW, AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
 use libbpf_rs::{
@@ -198,6 +198,7 @@ const PERM_GWO: mode_t = S_IRUSR | S_IWUSR | S_IWGRP;
 const PERM_UGR: mode_t = S_IRUSR | S_IRGRP;
 
 const GID_SYSTEM: u32 = AID_SYSTEM;
+const GID_GRAPHICS: u32 = AID_GRAPHICS;
 const GID_MEDIA_RW: u32 = AID_MEDIA_RW;
 
 const FILE_ARR: &[BpfFileDesc] = &[
@@ -238,6 +239,15 @@ const FILE_ARR: &[BpfFileDesc] = &[
         skip_on_user: false,
         maps: &[],
         progs: &[ProgDesc::new(GID_MEDIA_RW, "fuse_media")],
+    },
+    BpfFileDesc {
+        filename: "gpuMem.bpf",
+        dir: "/etc/bpf/",
+        prefix: "",
+        critical: false,
+        skip_on_user: false,
+        maps: &[MapDesc::new(GID_MEDIA_RW, PERM_GRO, "gpu_mem_total_map")],
+        progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_gpu_mem_gpu_mem_total")],
     },
 ];
 
