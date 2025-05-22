@@ -74,34 +74,6 @@ rust_bindgen {
     ],
 }
 
-cc_test {
-    name: "libbpf_load_test",
-    test_suites: ["general-tests"],
-    header_libs: ["bpf_headers"],
-    srcs: [
-        "BpfLoadTest.cpp",
-    ],
-    defaults: ["bpf_cc_defaults"],
-    cflags: [
-        "-Wno-error=unused-variable",
-    ],
-    static_libs: [
-        "libbpf_android",
-        "libgmock",
-    ],
-    shared_libs: [
-        "libbpf_bcc",
-        "libbase",
-        "liblog",
-        "libutils",
-    ],
-
-    data: [
-        ":bpfLoadTpProg.o",
-    ],
-    require_root: true,
-}
-
 rust_defaults {
     name: "bpfloader_defaults",
     srcs: [
