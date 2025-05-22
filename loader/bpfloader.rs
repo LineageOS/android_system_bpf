@@ -249,6 +249,18 @@ const FILE_ARR: &[BpfFileDesc] = &[
         maps: &[MapDesc::new(GID_MEDIA_RW, PERM_GRO, "gpu_mem_total_map")],
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_gpu_mem_gpu_mem_total")],
     },
+    BpfFileDesc {
+        filename: "gpuWork.bpf",
+        dir: "/etc/bpf/",
+        prefix: "",
+        critical: false,
+        skip_on_user: false,
+        maps: &[
+            MapDesc::new(GID_GRAPHICS, PERM_GRW, "gpu_work_map"),
+            MapDesc::new(GID_GRAPHICS, PERM_GRW, "gpu_work_global_data"),
+        ],
+        progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_power_gpu_work_period")],
+    },
 ];
 
 // TODO: Remove this code when fuse-bpf is upstreamed
