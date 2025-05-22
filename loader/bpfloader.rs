@@ -343,6 +343,15 @@ const FILE_ARR: &[BpfFileDesc] = &[
         maps: &[MapDesc::new_kver(GID_ROOT, PERM_GRW, KVER_5_10, "test_ringbuf")],
         progs: &[ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_ringbuf_test")],
     },
+    BpfFileDesc {
+        filename: "filterPowerSupplyEvents.bpf",
+        dir: "vendor/etc/bpf/",
+        prefix: "vendor/",
+        critical: true,
+        skip_on_user: false,
+        maps: &[],
+        progs: &[ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "skfilter_power_supply")],
+    },
 ];
 
 // TODO: Remove this code when fuse-bpf is upstreamed
