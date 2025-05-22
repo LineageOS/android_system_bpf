@@ -116,6 +116,7 @@ rust_defaults {
         "liblibbpf_rs",
         "liblibbpf_sys",
         "liblibc",
+        "librustutils",
     ],
 }
 

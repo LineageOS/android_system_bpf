@@ -28,6 +28,7 @@ use libc::{
     mode_t, uname, utsname, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR,
 };
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use rustutils::system_properties;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::{
@@ -185,6 +186,8 @@ struct BpfFileDesc {
     // Warning: setting this to 'true' will cause the system to boot loop if there are any issues
     // loading the bpf program.
     critical: bool,
+    // If this is true, maps and programs in the bpf object file are not loaded.
+    skip_on_user: bool,
     maps: &'static [MapDesc],
     progs: &'static [ProgDesc],
 }
@@ -203,6 +206,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         dir: "/etc/bpf/",
         prefix: "",
         critical: false,
+        skip_on_user: false,
         maps: &[
             MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_last_pid_map"),
             MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_last_update_map"),
@@ -231,6 +235,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         dir: "/etc/bpf/",
         prefix: "",
         critical: false,
+        skip_on_user: false,
         maps: &[],
         progs: &[ProgDesc::new(GID_MEDIA_RW, "fuse_media")],
     },
@@ -368,8 +373,20 @@ fn set_skip_loading(
     Ok(())
 }
 
+fn is_user_build() -> Result<bool, anyhow::Error> {
+    if let Some(build_string) = system_properties::read("ro.build.type")? {
+        Ok(build_string == "user")
+    } else {
+        Ok(false)
+    }
+}
+
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
+    if file_desc.skip_on_user && is_user_build()? {
+        info!("Skip loading {} on user build", file_desc.filename);
+        return Ok(());
+    }
     let filepath = Path::new(file_desc.dir).join(file_desc.filename);
     // TODO: Make this error once the BPF loader migration completes.
     if !filepath.exists() {
