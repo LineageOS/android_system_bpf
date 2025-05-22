@@ -207,6 +207,7 @@ const PERM_GRO: mode_t = S_IRUSR | S_IWUSR | S_IRGRP;
 const PERM_GWO: mode_t = S_IRUSR | S_IWUSR | S_IWGRP;
 const PERM_UGR: mode_t = S_IRUSR | S_IRGRP;
 
+const GID_ROOT: u32 = AID_ROOT;
 const GID_SYSTEM: u32 = AID_SYSTEM;
 const GID_GRAPHICS: u32 = AID_GRAPHICS;
 const GID_MEDIA_RW: u32 = AID_MEDIA_RW;
@@ -313,6 +314,24 @@ const FILE_ARR: &[BpfFileDesc] = &[
                 KVER_6_1,
                 "tracepoint_kmem_mm_calculate_totalreserve_pages_lmkd",
             ),
+        ],
+    },
+    BpfFileDesc {
+        filename: "bpfMemEventsTest.bpf",
+        dir: "/etc/bpf/memevents/",
+        prefix: "memevents/",
+        critical: false,
+        skip_on_user: false,
+        maps: &[MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "rb")],
+        progs: &[
+            ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "tracepoint_oom_mark_victim"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_oom_kill"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_direct_reclaim_begin"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_direct_reclaim_end"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_kswapd_wake"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_kswapd_sleep"),
+            ProgDesc::new_kver(GID_SYSTEM, KVER_6_1, "skfilter_android_trigger_vendor_lmk_kill"),
+            ProgDesc::new_kver(GID_ROOT, KVER_6_1, "skfilter_calculate_totalreserve_pages"),
         ],
     },
 ];
