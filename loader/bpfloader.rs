@@ -334,6 +334,15 @@ const FILE_ARR: &[BpfFileDesc] = &[
             ProgDesc::new_kver(GID_ROOT, KVER_6_1, "skfilter_calculate_totalreserve_pages"),
         ],
     },
+    BpfFileDesc {
+        filename: "bpfRingbufProg.bpf",
+        dir: "/etc/bpf/",
+        prefix: "",
+        critical: true,
+        skip_on_user: true,
+        maps: &[MapDesc::new_kver(GID_ROOT, PERM_GRW, KVER_5_10, "test_ringbuf")],
+        progs: &[ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_ringbuf_test")],
+    },
 ];
 
 // TODO: Remove this code when fuse-bpf is upstreamed
