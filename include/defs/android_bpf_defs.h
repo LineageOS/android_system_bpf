@@ -7,6 +7,7 @@
 // When using vmlinux.h, you can't use any system level headers.
 #include <vmlinux.h>
 #else
+#include <linux/bpf.h>
 #include <linux/types.h>
 #endif  // USE_VMLINUX
 #include <bpf/bpf_helpers.h>
@@ -17,7 +18,6 @@
 #undef __always_inline
 #define __always_inline __attribute__((__always_inline__))
 
-#include <linux/bpf.h>
 #include <sys/cdefs.h>
 
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)               \
