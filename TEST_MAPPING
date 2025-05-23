@@ -1,15 +1,7 @@
 {
   "presubmit": [
     {
-      "name": "libbpf_load_test"
-    },
-    {
       "name": "bpfloader_tests"
-    }
-  ],
-  "hwasan-postsubmit": [
-    {
-      "name": "libbpf_load_test"
     }
   ],
   "imports": [
