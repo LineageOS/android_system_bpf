@@ -16,7 +16,7 @@
 
 //! BPF loader for system and vendor applications
 
-use android_ids::{AID_MEDIA_RW, AID_ROOT, AID_SYSTEM};
+use android_ids::{AID_GRAPHICS, AID_MEDIA_RW, AID_ROOT, AID_SYSTEM};
 use android_logger::AndroidLogger;
 use anyhow::{anyhow, ensure};
 use libbpf_rs::{
@@ -49,6 +49,8 @@ const fn kver(a: u32, b: u32, c: u32) -> u32 {
 
 const KVER_NONE: u32 = kver(0, 0, 0);
 const KVER_INF: u32 = 0xFFFFFFFF;
+const KVER_5_10: u32 = kver(5, 10, 0);
+const KVER_6_1: u32 = kver(6, 1, 0);
 
 enum KernelLevel {
     // Commented out unused due to rust complaining...
@@ -160,6 +162,10 @@ impl MapDesc {
     pub const fn new(group: u32, perms: mode_t, name: &'static str) -> Self {
         MapDesc { name, perms, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
     }
+
+    pub const fn new_kver(group: u32, perms: mode_t, min_kver: u32, name: &'static str) -> Self {
+        MapDesc { name, perms, owner: AID_ROOT, group, min_kver, max_kver: KVER_INF }
+    }
 }
 
 struct ProgDesc {
@@ -174,6 +180,10 @@ struct ProgDesc {
 impl ProgDesc {
     pub const fn new(group: u32, name: &'static str) -> Self {
         ProgDesc { name, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
+    }
+
+    pub const fn new_kver(group: u32, min_kver: u32, name: &'static str) -> Self {
+        ProgDesc { name, owner: AID_ROOT, group, min_kver, max_kver: KVER_INF }
     }
 }
 
@@ -197,7 +207,9 @@ const PERM_GRO: mode_t = S_IRUSR | S_IWUSR | S_IRGRP;
 const PERM_GWO: mode_t = S_IRUSR | S_IWUSR | S_IWGRP;
 const PERM_UGR: mode_t = S_IRUSR | S_IRGRP;
 
+const GID_ROOT: u32 = AID_ROOT;
 const GID_SYSTEM: u32 = AID_SYSTEM;
+const GID_GRAPHICS: u32 = AID_GRAPHICS;
 const GID_MEDIA_RW: u32 = AID_MEDIA_RW;
 
 const FILE_ARR: &[BpfFileDesc] = &[
@@ -238,6 +250,107 @@ const FILE_ARR: &[BpfFileDesc] = &[
         skip_on_user: false,
         maps: &[],
         progs: &[ProgDesc::new(GID_MEDIA_RW, "fuse_media")],
+    },
+    BpfFileDesc {
+        filename: "gpuMem.bpf",
+        dir: "/etc/bpf/",
+        prefix: "",
+        critical: false,
+        skip_on_user: false,
+        maps: &[MapDesc::new(GID_MEDIA_RW, PERM_GRO, "gpu_mem_total_map")],
+        progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_gpu_mem_gpu_mem_total")],
+    },
+    BpfFileDesc {
+        filename: "gpuWork.bpf",
+        dir: "/etc/bpf/",
+        prefix: "",
+        critical: false,
+        skip_on_user: false,
+        maps: &[
+            MapDesc::new(GID_GRAPHICS, PERM_GRW, "gpu_work_map"),
+            MapDesc::new(GID_GRAPHICS, PERM_GRW, "gpu_work_global_data"),
+        ],
+        progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_power_gpu_work_period")],
+    },
+    BpfFileDesc {
+        filename: "bpfMemEvents.bpf",
+        dir: "/etc/bpf/memevents/",
+        prefix: "memevents/",
+        critical: false,
+        skip_on_user: false,
+        maps: &[
+            MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "ams_rb"),
+            MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "lmkd_rb"),
+        ],
+        progs: &[
+            ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "tracepoint_oom_mark_victim_ams"),
+            ProgDesc::new_kver(
+                GID_SYSTEM,
+                KVER_5_10,
+                "tracepoint_vmscan_mm_vmscan_direct_reclaim_begin_lmkd",
+            ),
+            ProgDesc::new_kver(
+                GID_SYSTEM,
+                KVER_5_10,
+                "tracepoint_vmscan_mm_vmscan_direct_reclaim_end_lmkd",
+            ),
+            ProgDesc::new_kver(
+                GID_SYSTEM,
+                KVER_5_10,
+                "tracepoint_vmscan_mm_vmscan_kswapd_wake_lmkd",
+            ),
+            ProgDesc::new_kver(
+                GID_SYSTEM,
+                KVER_5_10,
+                "tracepoint_vmscan_mm_vmscan_kswapd_sleep_lmkd",
+            ),
+            ProgDesc::new_kver(
+                GID_SYSTEM,
+                KVER_6_1,
+                "tracepoint_android_vendor_lmk_android_trigger_vendor_lmk_kill_lmkd",
+            ),
+            ProgDesc::new_kver(
+                GID_SYSTEM,
+                KVER_6_1,
+                "tracepoint_kmem_mm_calculate_totalreserve_pages_lmkd",
+            ),
+        ],
+    },
+    BpfFileDesc {
+        filename: "bpfMemEventsTest.bpf",
+        dir: "/etc/bpf/memevents/",
+        prefix: "memevents/",
+        critical: false,
+        skip_on_user: false,
+        maps: &[MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "rb")],
+        progs: &[
+            ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "tracepoint_oom_mark_victim"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_oom_kill"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_direct_reclaim_begin"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_direct_reclaim_end"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_kswapd_wake"),
+            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_kswapd_sleep"),
+            ProgDesc::new_kver(GID_SYSTEM, KVER_6_1, "skfilter_android_trigger_vendor_lmk_kill"),
+            ProgDesc::new_kver(GID_ROOT, KVER_6_1, "skfilter_calculate_totalreserve_pages"),
+        ],
+    },
+    BpfFileDesc {
+        filename: "bpfRingbufProg.bpf",
+        dir: "/etc/bpf/",
+        prefix: "",
+        critical: true,
+        skip_on_user: true,
+        maps: &[MapDesc::new_kver(GID_ROOT, PERM_GRW, KVER_5_10, "test_ringbuf")],
+        progs: &[ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_ringbuf_test")],
+    },
+    BpfFileDesc {
+        filename: "filterPowerSupplyEvents.bpf",
+        dir: "vendor/etc/bpf/",
+        prefix: "vendor/",
+        critical: true,
+        skip_on_user: false,
+        maps: &[],
+        progs: &[ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "skfilter_power_supply")],
     },
 ];
 
