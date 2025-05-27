@@ -107,7 +107,7 @@ rust_binary {
     product_variables: {
         debuggable: {
             required: [
-                "bpfRingbufProg.o",
+                "bpfRingbufProg.bpf",
             ],
         },
     },
