@@ -321,7 +321,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         dir: "/etc/bpf/memevents/",
         prefix: "memevents/",
         critical: false,
-        skip_on_user: false,
+        skip_on_user: true,
         maps: &[MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "rb")],
         progs: &[
             ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "tracepoint_oom_mark_victim"),
