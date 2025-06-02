@@ -257,7 +257,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         prefix: "",
         critical: false,
         skip_on_user: false,
-        maps: &[MapDesc::new(GID_MEDIA_RW, PERM_GRO, "gpu_mem_total_map")],
+        maps: &[MapDesc::new(GID_GRAPHICS, PERM_GRO, "gpu_mem_total_map")],
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_gpu_mem_gpu_mem_total")],
     },
     BpfFileDesc {
