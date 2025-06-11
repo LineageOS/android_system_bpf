@@ -59,3 +59,51 @@ cc_library_headers {
         },
     },
 }
+
+genrule {
+    name: "vmlinux_h_6_6_arm64",
+    cmd: "mkdir -p $(genDir)/6.6/arm64 && $(location bpftool) btf dump file $(location :vmlinux_6_6_arm64) format c > $(genDir)/6.6/arm64/vmlinux.h",
+    srcs: [
+        ":vmlinux_6_6_arm64",
+    ],
+    tools: ["bpftool"],
+    out: [
+        "6.6/arm64/vmlinux.h",
+    ],
+    export_include_dirs: ["6.6/arm64"],
+}
+
+genrule {
+    name: "vmlinux_h_6_6_x86_64",
+    cmd: "mkdir -p $(genDir)/6.6/x86_64 && $(location bpftool) btf dump file $(location :vmlinux_6_6_x86_64) format c > $(genDir)/6.6/x86_64/vmlinux.h",
+    srcs: [
+        ":vmlinux_6_6_x86_64",
+    ],
+    tools: ["bpftool"],
+    out: [
+        "6.6/x86_64/vmlinux.h",
+    ],
+    export_include_dirs: ["6.6/x86_64"],
+}
+
+cc_library_headers {
+    name: "vmlinux_h_6_6",
+    arch: {
+        arm: {
+            generated_headers: ["vmlinux_h_6_6_arm64"],
+            export_generated_headers: ["vmlinux_h_6_6_arm64"],
+        },
+        arm64: {
+            generated_headers: ["vmlinux_h_6_6_arm64"],
+            export_generated_headers: ["vmlinux_h_6_6_arm64"],
+        },
+        x86: {
+            generated_headers: ["vmlinux_h_6_6_x86_64"],
+            export_generated_headers: ["vmlinux_h_6_6_x86_64"],
+        },
+        x86_64: {
+            generated_headers: ["vmlinux_h_6_6_x86_64"],
+            export_generated_headers: ["vmlinux_h_6_6_x86_64"],
+        },
+    },
+}
