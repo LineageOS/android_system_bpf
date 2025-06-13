@@ -44,9 +44,11 @@ cc_library {
     ],
     header_libs: [
         "bpf_headers",
+        "bpf_prog_platform_headers",
     ],
     export_header_lib_headers: [
         "bpf_headers",
+        "bpf_prog_platform_headers",
     ],
     export_include_dirs: ["include"],
     defaults: ["bpf_cc_defaults"],
