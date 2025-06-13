@@ -27,11 +27,6 @@ cc_library_headers {
     export_include_dirs: ["include"],
 }
 
-bpf {
-    name: "bpfRingbufProg.o",
-    srcs: ["bpfRingbufProg.c"],
-}
-
 libbpf_prog {
     name: "bpfRingbufProg.bpf",
     srcs: ["bpfRingbufProg.c"],
