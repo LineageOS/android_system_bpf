@@ -866,23 +866,6 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     return ret;
 }
 
-// Networking-related program types are limited to the Tethering Apex
-// to prevent things from breaking due to conflicts on mainline updates
-// (exception made for socket filters, ie. xt_bpf for potential use in iptables,
-// or for attaching to sockets directly)
-constexpr bpf_prog_type kPlatformAllowedProgTypes[] = {
-        BPF_PROG_TYPE_KPROBE,
-        BPF_PROG_TYPE_PERF_EVENT,
-        BPF_PROG_TYPE_SOCKET_FILTER,
-        BPF_PROG_TYPE_TRACEPOINT,
-        BPF_PROG_TYPE_UNSPEC,  // Will be replaced with fuse bpf program type
-};
-
-constexpr bpf_prog_type kMemEventsAllowedProgTypes[] = {
-        BPF_PROG_TYPE_TRACEPOINT,
-        BPF_PROG_TYPE_SOCKET_FILTER,
-};
-
 // see b/162057235. For arbitrary program types, the concern is that due to the lack of
 // SELinux access controls over BPF program attachpoints, we have no way to control the
 // attachment of programs to shared resources (or to detect when a shared resource
@@ -892,20 +875,6 @@ constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
 };
 
 const Location locations[] = {
-        // Core operating system
-        {
-                .dir = "/system/etc/bpf/",
-                .prefix = "",
-                .allowedProgTypes = kPlatformAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kPlatformAllowedProgTypes),
-        },
-        // memevents
-        {
-                .dir = "/system/etc/bpf/memevents/",
-                .prefix = "memevents/",
-                .allowedProgTypes = kMemEventsAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kMemEventsAllowedProgTypes),
-        },
         // Vendor operating system
         {
                 .dir = "/vendor/etc/bpf/",
