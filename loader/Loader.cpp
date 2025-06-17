@@ -866,23 +866,6 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     return ret;
 }
 
-// Networking-related program types are limited to the Tethering Apex
-// to prevent things from breaking due to conflicts on mainline updates
-// (exception made for socket filters, ie. xt_bpf for potential use in iptables,
-// or for attaching to sockets directly)
-constexpr bpf_prog_type kPlatformAllowedProgTypes[] = {
-        BPF_PROG_TYPE_KPROBE,
-        BPF_PROG_TYPE_PERF_EVENT,
-        BPF_PROG_TYPE_SOCKET_FILTER,
-        BPF_PROG_TYPE_TRACEPOINT,
-        BPF_PROG_TYPE_UNSPEC,  // Will be replaced with fuse bpf program type
-};
-
-constexpr bpf_prog_type kMemEventsAllowedProgTypes[] = {
-        BPF_PROG_TYPE_TRACEPOINT,
-        BPF_PROG_TYPE_SOCKET_FILTER,
-};
-
 // see b/162057235. For arbitrary program types, the concern is that due to the lack of
 // SELinux access controls over BPF program attachpoints, we have no way to control the
 // attachment of programs to shared resources (or to detect when a shared resource
@@ -892,20 +875,6 @@ constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
 };
 
 const Location locations[] = {
-        // Core operating system
-        {
-                .dir = "/system/etc/bpf/",
-                .prefix = "",
-                .allowedProgTypes = kPlatformAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kPlatformAllowedProgTypes),
-        },
-        // memevents
-        {
-                .dir = "/system/etc/bpf/memevents/",
-                .prefix = "memevents/",
-                .allowedProgTypes = kMemEventsAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kMemEventsAllowedProgTypes),
-        },
         // Vendor operating system
         {
                 .dir = "/vendor/etc/bpf/",
@@ -967,23 +936,19 @@ int createSysFsBpfSubDir(const char* const prefix) {
 
 // ----- extern C stuff for rust below here -----
 
-void initLogging() {
+void vendorBpfLoader() {
     // since we only ever get called from mainline NetBpfLoad
     // (see packages/modules/Connectivity/netbpfload/NetBpfLoad.cpp around line 516)
     // and there no arguments, so we can just pretend/assume this is the case.
     const char* argv[] = {"/system/bin/bpfloader", NULL};
     android::base::InitLogging(const_cast<char**>(argv), &android::base::KernelLogger);
-}
 
-void createBpfFsSubDirectories() {
     for (const auto& location : android::bpf::locations) {
         if (android::bpf::createSysFsBpfSubDir(location.prefix)) {
             exit(120);
         }
     }
-}
 
-void legacyBpfLoader() {
     // Load all ELF objects, create programs and maps, and pin them
     for (const auto& location : android::bpf::locations) {
         if (android::bpf::loadAllElfObjects(location)) {
@@ -996,9 +961,7 @@ void legacyBpfLoader() {
             exit(121);
         }
     }
-}
 
-void execNetBpfLoadDone() {
     const char* args[] = {"/apex/com.android.tethering/bin/netbpfload", "done", NULL};
     execve(args[0], (char**)args, environ);
     ALOGE("FATAL: execve(): %d[%s]", errno, strerror(errno));
