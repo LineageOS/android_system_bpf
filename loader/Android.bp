@@ -102,6 +102,7 @@ rust_binary {
     name: "bpfloader",
     defaults: ["bpfloader_defaults"],
     required: [
+        "bpftool",
         "timeInState.bpf",
     ],
     product_variables: {
