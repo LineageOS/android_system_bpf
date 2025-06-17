@@ -936,23 +936,19 @@ int createSysFsBpfSubDir(const char* const prefix) {
 
 // ----- extern C stuff for rust below here -----
 
-void initLogging() {
+void vendorBpfLoader() {
     // since we only ever get called from mainline NetBpfLoad
     // (see packages/modules/Connectivity/netbpfload/NetBpfLoad.cpp around line 516)
     // and there no arguments, so we can just pretend/assume this is the case.
     const char* argv[] = {"/system/bin/bpfloader", NULL};
     android::base::InitLogging(const_cast<char**>(argv), &android::base::KernelLogger);
-}
 
-void createBpfFsSubDirectories() {
     for (const auto& location : android::bpf::locations) {
         if (android::bpf::createSysFsBpfSubDir(location.prefix)) {
             exit(120);
         }
     }
-}
 
-void legacyBpfLoader() {
     // Load all ELF objects, create programs and maps, and pin them
     for (const auto& location : android::bpf::locations) {
         if (android::bpf::loadAllElfObjects(location)) {
@@ -965,9 +961,7 @@ void legacyBpfLoader() {
             exit(121);
         }
     }
-}
 
-void execNetBpfLoadDone() {
     const char* args[] = {"/apex/com.android.tethering/bin/netbpfload", "done", NULL};
     execve(args[0], (char**)args, environ);
     ALOGE("FATAL: execve(): %d[%s]", errno, strerror(errno));

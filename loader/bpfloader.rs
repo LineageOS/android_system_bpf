@@ -640,14 +640,11 @@ fn main() {
     load_libbpf_progs();
     info!("Loading legacy BPF progs");
 
-    // SAFETY: Linking in the existing legacy bpfloader functionality.
-    // Any of the four following bindgen functions can abort() or exit()
-    // on failure and execNetBpfLoadDone() execve()'s.
+    // SAFETY: Linking in the existing legacy vendor bpfloader functionality.
+    // The following bindgen function can abort() or exit() on failure,
+    // but will usually execve().
     unsafe {
-        bpf_android_bindgen::initLogging();
-        bpf_android_bindgen::createBpfFsSubDirectories();
-        bpf_android_bindgen::legacyBpfLoader();
-        bpf_android_bindgen::execNetBpfLoadDone();
+        bpf_android_bindgen::vendorBpfLoader();
     }
 }
 

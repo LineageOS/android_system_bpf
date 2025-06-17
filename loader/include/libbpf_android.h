@@ -47,11 +47,8 @@ extern "C" {
 #define __noreturn
 #endif // __cplusplus
 
-// The C++ portion of the BpfLoader is exposed as 3 functions to be called in order.
-void initLogging();
-void createBpfFsSubDirectories();
-void legacyBpfLoader();
-__noreturn void execNetBpfLoadDone();
+// The C++ portion of the BpfLoader is exposed as a terminal function.
+__noreturn void vendorBpfLoader();
 
 #ifdef __cplusplus
 }  // extern C
