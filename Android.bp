@@ -36,6 +36,7 @@ cc_library_headers {
 cc_library_headers {
     name: "android_bpf_defs",
     export_include_dirs: ["include/defs"],
+    vendor_available: true,
 }
 
 cc_defaults {
