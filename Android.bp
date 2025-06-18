@@ -16,24 +16,6 @@ license {
 }
 
 cc_library_headers {
-    name: "vmlinux15_6.6",
-    arch: {
-        arm: {
-            export_include_dirs: ["include/vmlinux/android15_6.6/arm64"],
-        },
-        arm64: {
-            export_include_dirs: ["include/vmlinux/android15_6.6/arm64"],
-        },
-        x86: {
-            export_include_dirs: ["include/vmlinux/android15_6.6/x86_64"],
-        },
-        x86_64: {
-            export_include_dirs: ["include/vmlinux/android15_6.6/x86_64"],
-        },
-    },
-}
-
-cc_library_headers {
     name: "android_bpf_defs",
     export_include_dirs: ["include/defs"],
 }
