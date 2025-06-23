@@ -17,7 +17,7 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
-#define BPF_FS_PATH "/sys/fs/bpf/"
+#define BPF_TIMEINSTATE_PATH "/sys/fs/bpf/cputimeinstate/"
 
 // Number of frequencies tracked in the array with total time. If some CPUs have
 // more than 64 freqs
