@@ -215,8 +215,8 @@ const GID_MEDIA_RW: u32 = AID_MEDIA_RW;
 const FILE_ARR: &[BpfFileDesc] = &[
     BpfFileDesc {
         filename: "timeInState.bpf",
-        dir: "/etc/bpf/",
-        prefix: "",
+        dir: "/etc/bpf/cputimeinstate/",
+        prefix: "cputimeinstate/",
         critical: false,
         skip_on_user: false,
         maps: &[
