@@ -25,7 +25,8 @@ use libbpf_rs::{
 };
 use libbpf_sys::{bpf_map__autocreate, bpf_program__set_type};
 use libc::{
-    mode_t, uname, utsname, S_IRGRP, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP, S_IWUSR,
+    mode_t, uname, utsname, S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP,
+    S_IWOTH, S_IWUSR,
 };
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use rustutils::system_properties;
@@ -206,6 +207,9 @@ const PERM_GRW: mode_t = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 const PERM_GRO: mode_t = S_IRUSR | S_IWUSR | S_IRGRP;
 const PERM_GWO: mode_t = S_IRUSR | S_IWUSR | S_IWGRP;
 const PERM_UGR: mode_t = S_IRUSR | S_IRGRP;
+const PERM_ORW: mode_t = PERM_GRW | S_IROTH | S_IWOTH;
+const PERM_ORO: mode_t = PERM_GRO | S_IROTH;
+const PERM_OWO: mode_t = PERM_GWO | S_IWOTH;
 
 const GID_ROOT: u32 = AID_ROOT;
 const GID_SYSTEM: u32 = AID_SYSTEM;
@@ -220,21 +224,21 @@ const FILE_ARR: &[BpfFileDesc] = &[
         critical: false,
         skip_on_user: false,
         maps: &[
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_last_pid_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_last_update_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "cpu_policy_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "freq_to_idx_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "nr_active_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "pid_task_aggregation_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GRO, "pid_time_in_state_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "pid_tracked_hash_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "pid_tracked_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "policy_freq_idx_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GWO, "policy_nr_active_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GRW, "total_time_in_state_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_concurrent_times_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_last_update_map"),
-            MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_time_in_state_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "cpu_last_pid_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "cpu_last_update_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "cpu_policy_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "freq_to_idx_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "nr_active_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "pid_task_aggregation_map"),
+            MapDesc::new(GID_SYSTEM, PERM_ORO, "pid_time_in_state_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "pid_tracked_hash_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "pid_tracked_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "policy_freq_idx_map"),
+            MapDesc::new(GID_SYSTEM, PERM_OWO, "policy_nr_active_map"),
+            MapDesc::new(GID_SYSTEM, PERM_ORW, "total_time_in_state_map"),
+            MapDesc::new(GID_SYSTEM, PERM_ORW, "uid_concurrent_times_map"),
+            MapDesc::new(GID_SYSTEM, PERM_ORW, "uid_last_update_map"),
+            MapDesc::new(GID_SYSTEM, PERM_ORW, "uid_time_in_state_map"),
         ],
         progs: &[
             ProgDesc::new(GID_SYSTEM, "tracepoint_power_cpu_frequency"),
