@@ -175,15 +175,12 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<char>& 
         if (!secname) continue;
 
         if (!strcmp(secname, name)) {
-            vector<char> dataTmp;
-            dataTmp.resize(shTable[i].sh_size);
-
             elfFile.seekg(shTable[i].sh_offset);
             if (elfFile.fail()) return -1;
 
-            if (!elfFile.read((char*)dataTmp.data(), shTable[i].sh_size)) return -1;
+            data.resize(shTable[i].sh_size);
+            if (!elfFile.read(data.data(), shTable[i].sh_size)) return -1;
 
-            data = dataTmp;
             return 0;
         }
     }
@@ -200,15 +197,12 @@ static int readSectionByType(ifstream& elfFile, int type, vector<char>& data) {
     for (int i = 0; i < (int)shTable.size(); i++) {
         if ((int)shTable[i].sh_type != type) continue;
 
-        vector<char> dataTmp;
-        dataTmp.resize(shTable[i].sh_size);
-
         elfFile.seekg(shTable[i].sh_offset);
         if (elfFile.fail()) return -1;
 
-        if (!elfFile.read((char*)dataTmp.data(), shTable[i].sh_size)) return -1;
+        data.resize(shTable[i].sh_size);
+        if (!elfFile.read(data.data(), shTable[i].sh_size)) return -1;
 
-        data = dataTmp;
         return 0;
     }
     return -2;
