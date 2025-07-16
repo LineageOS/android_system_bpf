@@ -101,10 +101,8 @@ static int readElfHeader(ifstream& elfFile, Elf64_Ehdr* eh) {
 // Reads all section header tables into an Shdr array
 static int readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable) {
     Elf64_Ehdr eh;
-    int ret = 0;
 
-    ret = readElfHeader(elfFile, &eh);
-    if (ret) return ret;
+    if (readElfHeader(elfFile, &eh)) return -1;
 
     elfFile.seekg(eh.e_shoff);
     if (elfFile.fail()) return -1;
@@ -112,7 +110,7 @@ static int readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable)
     // Read shdr table entries
     shTable.resize(eh.e_shnum);
 
-    if (!elfFile.read((char*)shTable.data(), (eh.e_shnum * eh.e_shentsize))) return -ENOMEM;
+    if (!elfFile.read((char*)shTable.data(), eh.e_shnum * eh.e_shentsize)) return -1;
 
     return 0;
 }
@@ -120,8 +118,7 @@ static int readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable)
 // Read a section by its index - for ex to get sec hdr strtab blob
 static int readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
     vector<Elf64_Shdr> shTable;
-    int ret = readSectionHeadersAll(elfFile, shTable);
-    if (ret) return ret;
+    if (readSectionHeadersAll(elfFile, shTable)) return -1;
 
     elfFile.seekg(shTable[id].sh_offset);
     if (elfFile.fail()) return -1;
@@ -135,45 +132,33 @@ static int readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
 // Read whole section header string table
 static int readSectionHeaderStrtab(ifstream& elfFile, vector<char>& strtab) {
     Elf64_Ehdr eh;
-    int ret = readElfHeader(elfFile, &eh);
-    if (ret) return ret;
-
-    ret = readSectionByIdx(elfFile, eh.e_shstrndx, strtab);
-    if (ret) return ret;
-
+    if (readElfHeader(elfFile, &eh)) return -1;
+    if (readSectionByIdx(elfFile, eh.e_shstrndx, strtab)) return -1;
     return 0;
 }
 
 // Get name from offset in strtab
 static int getSymName(ifstream& elfFile, int nameOff, string& name) {
-    int ret;
     vector<char> secStrTab;
-
-    ret = readSectionHeaderStrtab(elfFile, secStrTab);
-    if (ret) return ret;
+    if (readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
 
     if (nameOff >= (int)secStrTab.size()) return -1;
 
-    name = string((char*)secStrTab.data() + nameOff);
+    name = string(secStrTab.data() + nameOff);
     return 0;
 }
 
 // Reads a full section by name - example to get the GPL license
 template <typename T>
 static int readSectionByName(const char* name, ifstream& elfFile, vector<T>& data) {
-    vector<char> secStrTab;
     vector<Elf64_Shdr> shTable;
-    int ret;
+    if (readSectionHeadersAll(elfFile, shTable)) return -1;
 
-    ret = readSectionHeadersAll(elfFile, shTable);
-    if (ret) return ret;
-
-    ret = readSectionHeaderStrtab(elfFile, secStrTab);
-    if (ret) return ret;
+    vector<char> secStrTab;
+    if (readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
 
     for (int i = 0; i < (int)shTable.size(); i++) {
         char* secname = secStrTab.data() + shTable[i].sh_name;
-        if (!secname) continue;
 
         if (!strcmp(secname, name)) {
             elfFile.seekg(shTable[i].sh_offset);
@@ -191,11 +176,8 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<T>& dat
 }
 
 static int readSectionByType(ifstream& elfFile, int type, vector<char>& data) {
-    int ret;
     vector<Elf64_Shdr> shTable;
-
-    ret = readSectionHeadersAll(elfFile, shTable);
-    if (ret) return ret;
+    if (readSectionHeadersAll(elfFile, shTable)) return -1;
 
     for (int i = 0; i < (int)shTable.size(); i++) {
         if ((int)shTable[i].sh_type != type) continue;
@@ -216,15 +198,12 @@ static bool symCompare(Elf64_Sym a, Elf64_Sym b) {
 }
 
 static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
-    int ret, numElems;
-    Elf64_Sym* buf;
     vector<char> secData;
-
-    ret = readSectionByType(elfFile, SHT_SYMTAB, secData);
+    int ret = readSectionByType(elfFile, SHT_SYMTAB, secData);
     if (ret) return ret;
 
-    buf = (Elf64_Sym*)secData.data();
-    numElems = (secData.size() / sizeof(Elf64_Sym));
+    Elf64_Sym* buf = (Elf64_Sym*)secData.data();
+    int numElems = secData.size() / sizeof(Elf64_Sym);
     data.assign(buf, buf + numElems);
 
     if (sort) std::sort(data.begin(), data.end(), symCompare);
