@@ -214,29 +214,6 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<char>& 
     return -2;
 }
 
-unsigned int readSectionUint(const char* name, ifstream& elfFile, unsigned int defVal) {
-    vector<char> theBytes;
-    int ret = readSectionByName(name, elfFile, theBytes);
-    if (ret) {
-        ALOGV("Couldn't find section %s (defaulting to %u [0x%x]).", name, defVal, defVal);
-        return defVal;
-    } else if (theBytes.size() < sizeof(unsigned int)) {
-        ALOGE("Section %s too short (defaulting to %u [0x%x]).", name, defVal, defVal);
-        return defVal;
-    } else {
-        // decode first 4 bytes as LE32 uint, there will likely be more bytes due to alignment.
-        unsigned int value = static_cast<unsigned char>(theBytes[3]);
-        value <<= 8;
-        value += static_cast<unsigned char>(theBytes[2]);
-        value <<= 8;
-        value += static_cast<unsigned char>(theBytes[1]);
-        value <<= 8;
-        value += static_cast<unsigned char>(theBytes[0]);
-        ALOGV("Section %s value is %u [0x%x]", name, value, value);
-        return value;
-    }
-}
-
 static int readSectionByType(ifstream& elfFile, int type, vector<char>& data) {
     int ret;
     vector<Elf64_Shdr> shTable;
