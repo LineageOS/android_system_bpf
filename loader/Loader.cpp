@@ -817,6 +817,13 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     return 0;
 }
 
+struct Location {
+    const char* const dir = "";
+    const char* const prefix = "";
+    const bpf_prog_type* allowedProgTypes = nullptr;
+    size_t allowedProgTypesLength = 0;
+};
+
 int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     vector<char> license;
     vector<char> critical;
