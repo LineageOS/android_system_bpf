@@ -51,8 +51,6 @@
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 
-#define BPF_FS_PATH "/sys/fs/bpf/"
-
 // Size of the BPF log buffer for verifier logging
 #define BPF_LOAD_LOG_SZ 0xfffff
 
@@ -481,8 +479,7 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
     return false;
 }
 
-static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
-                      const char* prefix) {
+static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds) {
     int ret;
     vector<char> mdData;
     vector<struct bpf_map_def> md;
@@ -546,7 +543,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         // Format of pin location is /sys/fs/bpf/<prefix>map_<objName>_<mapName>
         // except that maps shared across .o's have empty <objName>
         // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
-        string mapPinLoc = string(BPF_FS_PATH) + prefix + "map_" +
+        string mapPinLoc = string("/sys/fs/bpf/vendor/map_") +
                            (md[i].shared ? "" : objName) + "_" + mapNames[i];
         bool reuse = false;
         unique_fd fd;
@@ -667,8 +664,7 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
-                            const char* prefix) {
+static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license) {
     unsigned kvers = kernelVersion();
 
     if (!kvers) {
@@ -704,8 +700,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         bool reuse = false;
         // Format of pin location is
         // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
-        string progPinLoc = string(BPF_FS_PATH) + prefix + "prog_" +
-                            objName + '_' + string(name);
+        string progPinLoc = string("/sys/fs/bpf/vendor/prog_") + objName + '_' + name;
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             ALOGV("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
@@ -779,12 +774,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     return 0;
 }
 
-struct Location {
-    const char* const dir = "";
-    const char* const prefix = "";
-};
-
-int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
+int loadProg(const char* elfPath, bool* isCritical) {
     vector<char> license;
     vector<char> critical;
     vector<codeSection> cs;
@@ -816,7 +806,7 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
         return ret;
     }
 
-    ret = createMaps(elfPath, elfFile, mapFds, location.prefix);
+    ret = createMaps(elfPath, elfFile, mapFds);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
@@ -827,35 +817,27 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
 
     applyMapRelo(elfFile, mapFds, cs);
 
-    ret = loadCodeSections(elfPath, cs, string(license.data()), location.prefix);
+    ret = loadCodeSections(elfPath, cs, string(license.data()));
     if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);
 
     return ret;
 }
 
-const Location locations[] = {
-        // Vendor operating system
-        {
-                .dir = "/vendor/etc/bpf/",
-                .prefix = "vendor/",
-        },
-};
-
-int loadAllElfObjects(const Location& location) {
+int loadAllElfObjects() {
     int retVal = 0;
     DIR* dir;
     struct dirent* ent;
 
-    if ((dir = opendir(location.dir)) != NULL) {
+    if ((dir = opendir("/vendor/etc/bpf/")) != NULL) {
         while ((ent = readdir(dir)) != NULL) {
             string s = ent->d_name;
             if (!EndsWith(s, ".o")) continue;
 
-            string progPath(location.dir);
+            string progPath("/vendor/etc/bpf/");
             progPath += s;
 
             bool critical;
-            int ret = loadProg(progPath.c_str(), &critical, location);
+            int ret = loadProg(progPath.c_str(), &critical);
             if (ret) {
                 if (critical) retVal = ret;
                 ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), strerror(-ret));
@@ -868,23 +850,18 @@ int loadAllElfObjects(const Location& location) {
     return retVal;
 }
 
-int createSysFsBpfSubDir(const char* const prefix) {
-    if (*prefix) {
-        mode_t prevUmask = umask(0);
+int createSysFsBpfVendor() {
+    mode_t prevUmask = umask(0);
 
-        string s = "/sys/fs/bpf/";
-        s += prefix;
-
-        errno = 0;
-        int ret = mkdir(s.c_str(), S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
-        if (ret && errno != EEXIST) {
-            const int err = errno;
-            ALOGE("Failed to create directory: %s, ret: %s", s.c_str(), strerror(err));
-            return -err;
-        }
-
-        umask(prevUmask);
+    errno = 0;
+    int ret = mkdir("/sys/fs/bpf/vendor", S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
+    if (ret && errno != EEXIST) {
+        const int err = errno;
+        ALOGE("Failed to create directory: /sys/fs/bpf/vendor, ret: %s", strerror(err));
+        return -err;
     }
+
+    umask(prevUmask);
     return 0;
 }
 
@@ -900,23 +877,17 @@ void vendorBpfLoader() {
     const char* argv[] = {"/system/bin/bpfloader", NULL};
     android::base::InitLogging(const_cast<char**>(argv), &android::base::KernelLogger);
 
-    for (const auto& location : android::bpf::locations) {
-        if (android::bpf::createSysFsBpfSubDir(location.prefix)) {
-            exit(120);
-        }
-    }
+    if (android::bpf::createSysFsBpfVendor()) exit(120);
 
     // Load all ELF objects, create programs and maps, and pin them
-    for (const auto& location : android::bpf::locations) {
-        if (android::bpf::loadAllElfObjects(location)) {
-            ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS FROM %s ===", location.dir);
-            ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
-            ALOGE("If this triggers randomly, you might be hitting some memory allocation "
-                  "problems or startup script race.");
-            ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
-            sleep(20);
-            exit(121);
-        }
+    if (android::bpf::loadAllElfObjects()) {
+        ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS FROM /vendor/etc/bpf ===");
+        ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
+        ALOGE("If this triggers randomly, you might be hitting some memory allocation "
+              "problems or startup script race.");
+        ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
+        sleep(20);
+        exit(121);
     }
 
     const char* args[] = {"/apex/com.android.tethering/bin/netbpfload", "done", NULL};
