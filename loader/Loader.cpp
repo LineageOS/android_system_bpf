@@ -80,30 +80,6 @@ static string pathToObjName(const string& path) {
 }
 
 typedef struct {
-    const char* name;
-    enum bpf_prog_type type;
-} sectionType;
-
-/*
- * Map section name prefixes to program types, the section name will be:
- *   SECTION(<prefix>/<name-of-program>)
- * For example:
- *   SECTION("tracepoint/sched_switch_func") where sched_switch_funcs
- * is the name of the program, and tracepoint is the type.
- *
- * However, be aware that you should not be directly using the SECTION() macro.
- * Instead use the DEFINE_(BPF|XDP)_(PROG|MAP)... & LICENSE/CRITICAL macros.
- *
- * see b/162057235. For arbitrary program types, the concern is that due to the lack of
- * SELinux access controls over BPF program attachpoints, we have no way to control the
- * attachment of programs to shared resources (or to detect when a shared resource
- * has one BPF program replace another that is attached there)
- */
-sectionType sectionNameTypes[] = {
-        {"skfilter/",      BPF_PROG_TYPE_SOCKET_FILTER},
-};
-
-typedef struct {
     enum bpf_prog_type type;
     string name;
     vector<char> data;
@@ -258,13 +234,6 @@ static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
     return 0;
 }
 
-static enum bpf_prog_type getSectionType(string& name) {
-    for (auto& snt : sectionNameTypes)
-        if (StartsWith(name, snt.name)) return snt.type;
-
-    return BPF_PROG_TYPE_UNSPEC;
-}
-
 static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd) {
     vector<char> pdData;
     int ret = readSectionByName("progs", elfFile, pdData);
@@ -350,16 +319,14 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         ret = getSymName(elfFile, shTable[i].sh_name, name);
         if (ret) return ret;
 
-        enum bpf_prog_type ptype = getSectionType(name);
-
-        if (ptype == BPF_PROG_TYPE_UNSPEC) continue;
+        if (!StartsWith(name, "skfilter/")) continue;
 
         string oldName = name;
 
         // convert all slashes to underscores
         std::replace(name.begin(), name.end(), '/', '_');
 
-        cs_temp.type = ptype;
+        cs_temp.type = BPF_PROG_TYPE_SOCKET_FILTER;
         cs_temp.name = name;
 
         ret = readSectionByIdx(elfFile, i, cs_temp.data);
