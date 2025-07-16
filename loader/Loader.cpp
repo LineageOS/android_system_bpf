@@ -431,54 +431,6 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
     return getSymName(elfFile, symtab[index].st_name, name);
 }
 
-static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
-                                   const struct bpf_map_def& mapDef) {
-    // Assuming fd is a valid Bpf Map file descriptor then
-    // all the following should always succeed on a 4.14+ kernel.
-    // If they somehow do fail, they'll return -1 (and set errno),
-    // which should then cause (among others) a key_size mismatch.
-    int fd_type = bpfGetFdMapType(fd);
-    int fd_key_size = bpfGetFdKeySize(fd);
-    int fd_value_size = bpfGetFdValueSize(fd);
-    int fd_max_entries = bpfGetFdMaxEntries(fd);
-    int fd_map_flags = bpfGetFdMapFlags(fd);
-
-    // DEVMAPs are readonly from the bpf program side's point of view, as such
-    // the kernel in kernel/bpf/devmap.c dev_map_init_map() will set the flag
-    int desired_map_flags = (int)mapDef.map_flags;
-    if (mapDef.type == BPF_MAP_TYPE_DEVMAP || mapDef.type == BPF_MAP_TYPE_DEVMAP_HASH)
-        desired_map_flags |= BPF_F_RDONLY_PROG;
-
-    // The .h file enforces that this is a power of two, and page size will
-    // also always be a power of two, so this logic is actually enough to
-    // force it to be a multiple of the page size, as required by the kernel.
-    unsigned int desired_max_entries = mapDef.max_entries;
-    if (mapDef.type == BPF_MAP_TYPE_RINGBUF) {
-        if (desired_max_entries < page_size) desired_max_entries = page_size;
-    }
-
-    // The following checks should *never* trigger, if one of them somehow does,
-    // it probably means a bpf .o file has been changed/replaced at runtime
-    // and bpfloader was manually rerun (normally it should only run *once*
-    // early during the boot process).
-    // Another possibility is that something is misconfigured in the code:
-    // most likely a shared map is declared twice differently.
-    // But such a change should never be checked into the source tree...
-    if ((fd_type == mapDef.type) &&
-        (fd_key_size == (int)mapDef.key_size) &&
-        (fd_value_size == (int)mapDef.value_size) &&
-        (fd_max_entries == (int)desired_max_entries) &&
-        (fd_map_flags == desired_map_flags)) {
-        return true;
-    }
-
-    ALOGE("bpf map name %s mismatch: desired/found: "
-          "type:%d/%d key:%u/%d value:%u/%d entries:%u/%d flags:%u/%d",
-          mapName.c_str(), mapDef.type, fd_type, mapDef.key_size, fd_key_size, mapDef.value_size,
-          fd_value_size, mapDef.max_entries, fd_max_entries, desired_map_flags, fd_map_flags);
-    return false;
-}
-
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds) {
     int ret;
     vector<char> mdData;
@@ -557,11 +509,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         }
 
         if (!fd.ok()) return -saved_errno;
-
-        // When reusing a pinned map, we need to check the map type/sizes/etc match, but for
-        // safety (since reuse code path is rare) run these checks even if we just created it.
-        // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
-        if (!mapMatchesExpectations(fd, mapNames[i], md[i])) return -ENOTUNIQ;
 
         if (!reuse) {
             ret = bpfFdPin(fd, mapPinLoc.c_str());
