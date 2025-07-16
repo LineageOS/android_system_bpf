@@ -95,15 +95,14 @@ typedef struct {
  *
  * However, be aware that you should not be directly using the SECTION() macro.
  * Instead use the DEFINE_(BPF|XDP)_(PROG|MAP)... & LICENSE/CRITICAL macros.
+ *
+ * see b/162057235. For arbitrary program types, the concern is that due to the lack of
+ * SELinux access controls over BPF program attachpoints, we have no way to control the
+ * attachment of programs to shared resources (or to detect when a shared resource
+ * has one BPF program replace another that is attached there)
  */
 sectionType sectionNameTypes[] = {
-        {"kprobe/",        BPF_PROG_TYPE_KPROBE},
-        {"kretprobe/",     BPF_PROG_TYPE_KPROBE},
-        {"perf_event/",    BPF_PROG_TYPE_PERF_EVENT},
         {"skfilter/",      BPF_PROG_TYPE_SOCKET_FILTER},
-        {"tracepoint/",    BPF_PROG_TYPE_TRACEPOINT},
-        {"uprobe/",        BPF_PROG_TYPE_KPROBE},
-        {"uretprobe/",     BPF_PROG_TYPE_KPROBE},
 };
 
 typedef struct {
@@ -284,29 +283,11 @@ static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
     return 0;
 }
 
-static enum bpf_prog_type getFuseProgType() {
-    int result = BPF_PROG_TYPE_UNSPEC;
-    ifstream("/sys/fs/fuse/bpf_prog_type_fuse") >> result;
-    return static_cast<bpf_prog_type>(result);
-}
-
 static enum bpf_prog_type getSectionType(string& name) {
     for (auto& snt : sectionNameTypes)
         if (StartsWith(name, snt.name)) return snt.type;
 
-    // TODO Remove this code when fuse-bpf is upstream and this BPF_PROG_TYPE_FUSE is fixed
-    if (StartsWith(name, "fuse/")) return getFuseProgType();
-
     return BPF_PROG_TYPE_UNSPEC;
-}
-
-static string getSectionName(enum bpf_prog_type type)
-{
-    for (auto& snt : sectionNameTypes)
-        if (snt.type == type)
-            return string(snt.name);
-
-    return "UNKNOWN SECTION NAME " + std::to_string(type);
 }
 
 static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd) {
@@ -370,22 +351,8 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
     return 0;
 }
 
-static bool IsAllowed(bpf_prog_type type, const bpf_prog_type* allowed, size_t numAllowed) {
-    if (allowed == nullptr) return true;
-
-    for (size_t i = 0; i < numAllowed; i++) {
-        if (allowed[i] == BPF_PROG_TYPE_UNSPEC) {
-            if (type == getFuseProgType()) return true;
-        } else if (type == allowed[i])
-            return true;
-    }
-
-    return false;
-}
-
 /* Read a section by its index - for ex to get sec hdr strtab blob */
-static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs,
-                            const bpf_prog_type* allowed, size_t numAllowed) {
+static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
     vector<Elf64_Shdr> shTable;
     int entries, ret = 0;
 
@@ -411,11 +378,6 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs,
         enum bpf_prog_type ptype = getSectionType(name);
 
         if (ptype == BPF_PROG_TYPE_UNSPEC) continue;
-
-        if (!IsAllowed(ptype, allowed, numAllowed)) {
-            ALOGE("Program type %s not permitted here", getSectionName(ptype).c_str());
-            return -1;
-        }
 
         string oldName = name;
 
@@ -820,8 +782,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 struct Location {
     const char* const dir = "";
     const char* const prefix = "";
-    const bpf_prog_type* allowedProgTypes = nullptr;
-    size_t allowedProgTypesLength = 0;
 };
 
 int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
@@ -850,7 +810,7 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
           *isCritical ? "critical for " : "optional", *isCritical ? (char*)critical.data() : "",
           elfPath, (char*)license.data());
 
-    ret = readCodeSections(elfFile, cs, location.allowedProgTypes, location.allowedProgTypesLength);
+    ret = readCodeSections(elfFile, cs);
     if (ret) {
         ALOGE("Couldn't read all code sections in %s", elfPath);
         return ret;
@@ -873,21 +833,11 @@ int loadProg(const char* elfPath, bool* isCritical, const Location& location) {
     return ret;
 }
 
-// see b/162057235. For arbitrary program types, the concern is that due to the lack of
-// SELinux access controls over BPF program attachpoints, we have no way to control the
-// attachment of programs to shared resources (or to detect when a shared resource
-// has one BPF program replace another that is attached there)
-constexpr bpf_prog_type kVendorAllowedProgTypes[] = {
-        BPF_PROG_TYPE_SOCKET_FILTER,
-};
-
 const Location locations[] = {
         // Vendor operating system
         {
                 .dir = "/vendor/etc/bpf/",
                 .prefix = "vendor/",
-                .allowedProgTypes = kVendorAllowedProgTypes,
-                .allowedProgTypesLength = arraysize(kVendorAllowedProgTypes),
         },
 };
 
