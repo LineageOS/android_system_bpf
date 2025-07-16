@@ -850,21 +850,6 @@ int loadAllElfObjects() {
     return retVal;
 }
 
-int createSysFsBpfVendor() {
-    mode_t prevUmask = umask(0);
-
-    errno = 0;
-    int ret = mkdir("/sys/fs/bpf/vendor", S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
-    if (ret && errno != EEXIST) {
-        const int err = errno;
-        ALOGE("Failed to create directory: /sys/fs/bpf/vendor, ret: %s", strerror(err));
-        return -err;
-    }
-
-    umask(prevUmask);
-    return 0;
-}
-
 }  // namespace bpf
 }  // namespace android
 
@@ -876,8 +861,6 @@ void vendorBpfLoader() {
     // and there no arguments, so we can just pretend/assume this is the case.
     const char* argv[] = {"/system/bin/bpfloader", NULL};
     android::base::InitLogging(const_cast<char**>(argv), &android::base::KernelLogger);
-
-    if (android::bpf::createSysFsBpfVendor()) exit(120);
 
     // Load all ELF objects, create programs and maps, and pin them
     if (android::bpf::loadAllElfObjects()) {
