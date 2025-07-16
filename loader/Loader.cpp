@@ -533,13 +533,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             }
         }
 
-        int mapId = bpfGetFdMapId(fd);
-        if (mapId == -1) {
-            ALOGE("bpfGetFdMapId failed, ret: %d [%d]", mapId, errno);
-        } else {
-            ALOGD("map %s id %d", mapPinLoc.c_str(), mapId);
-        }
-
         mapFds.push_back(std::move(fd));
     }
 
@@ -696,13 +689,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
                       cs[i].prog_def->gid, err, strerror(err));
                 return -err;
             }
-        }
-
-        int progId = bpfGetFdProgId(fd);
-        if (progId == -1) {
-            ALOGE("bpfGetFdProgId failed, ret: %d [%d]", progId, errno);
-        } else {
-            ALOGD("prog %s id %d", progPinLoc.c_str(), progId);
         }
     }
 
