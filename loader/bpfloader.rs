@@ -644,6 +644,10 @@ fn main() {
     load_libbpf_progs();
     info!("Loading legacy BPF progs");
 
+    if let Err(e) = create_dir(Path::new("/sys/fs/bpf/vendor")) {
+        panic!("Error during mkdir /sys/fs/bpf/vendor: {e}");
+    };
+
     // SAFETY: Linking in the existing legacy vendor bpfloader functionality.
     // The following bindgen function can abort() or exit() on failure,
     // but will usually execve().

@@ -17,39 +17,8 @@
 
 #pragma once
 
-#ifdef __cplusplus
-
-#include <linux/bpf.h>
-
-#include <fstream>
-
-namespace android {
-namespace bpf {
-
-struct Location {
-    const char* const dir = "";
-    const char* const prefix = "";
-    const bpf_prog_type* allowedProgTypes = nullptr;
-    size_t allowedProgTypesLength = 0;
-};
-
-// BPF loader implementation. Loads an eBPF ELF object
-int loadProg(const char* elfPath, bool* isCritical, const Location &location = {});
-
-// Exposed for testing
-unsigned int readSectionUint(const char* name, std::ifstream& elfFile, unsigned int defVal);
-
-}  // namespace bpf
-}  // namespace android
-
-extern "C" {
-#else // __cplusplus
-#define __noreturn
-#endif // __cplusplus
-
 // The C++ portion of the BpfLoader is exposed as a terminal function.
-__noreturn void vendorBpfLoader();
-
 #ifdef __cplusplus
-}  // extern C
+extern "C" __noreturn
 #endif
+void vendorBpfLoader();
