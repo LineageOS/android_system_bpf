@@ -216,7 +216,7 @@ const GID_MEDIA_RW: u32 = AID_MEDIA_RW;
 
 const FILE_ARR: &[BpfFileDesc] = &[
     BpfFileDesc {
-        filename: "/etc/bpf/cputimeinstate/timeInState.bpf",
+        filename: "/system/etc/bpf/cputimeinstate/timeInState.bpf",
         prefix: "cputimeinstate/",
         critical: false,
         skip_on_user: false,
@@ -244,7 +244,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         ],
     },
     BpfFileDesc {
-        filename: "/etc/bpf/fuseMedia.bpf",
+        filename: "/system/etc/bpf/fuseMedia.bpf",
         prefix: "",
         critical: false,
         skip_on_user: false,
@@ -252,7 +252,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         progs: &[ProgDesc::new(GID_MEDIA_RW, "fuse_media")],
     },
     BpfFileDesc {
-        filename: "/etc/bpf/gpuMem.bpf",
+        filename: "/system/etc/bpf/gpuMem.bpf",
         prefix: "",
         critical: false,
         skip_on_user: false,
@@ -260,7 +260,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_gpu_mem_gpu_mem_total")],
     },
     BpfFileDesc {
-        filename: "/etc/bpf/gpuWork.bpf",
+        filename: "/system/etc/bpf/gpuWork.bpf",
         prefix: "",
         critical: false,
         skip_on_user: false,
@@ -271,7 +271,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_power_gpu_work_period")],
     },
     BpfFileDesc {
-        filename: "/etc/bpf/memevents/bpfMemEvents.bpf",
+        filename: "/system/etc/bpf/memevents/bpfMemEvents.bpf",
         prefix: "memevents/",
         critical: false,
         skip_on_user: false,
@@ -314,7 +314,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         ],
     },
     BpfFileDesc {
-        filename: "/etc/bpf/memevents/bpfMemEventsTest.bpf",
+        filename: "/system/etc/bpf/memevents/bpfMemEventsTest.bpf",
         prefix: "memevents/",
         critical: false,
         skip_on_user: true,
@@ -331,7 +331,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         ],
     },
     BpfFileDesc {
-        filename: "/etc/bpf/bpfRingbufProg.bpf",
+        filename: "/system/etc/bpf/bpfRingbufProg.bpf",
         prefix: "",
         critical: true,
         skip_on_user: true,
