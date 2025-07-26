@@ -197,6 +197,8 @@ struct BpfFileDesc {
     critical: bool,
     // If this is true, maps and programs in the bpf object file are not loaded.
     skip_on_user: bool,
+    // If this is true, the file is allowed to be missing.
+    allow_missing: bool,
     maps: &'static [MapDesc],
     progs: &'static [ProgDesc],
 }
@@ -214,12 +216,20 @@ const GID_SYSTEM: u32 = AID_SYSTEM;
 const GID_GRAPHICS: u32 = AID_GRAPHICS;
 const GID_MEDIA_RW: u32 = AID_MEDIA_RW;
 
+const BPF_FILE_DESC_DEFAULT: BpfFileDesc = BpfFileDesc {
+    filename: "",
+    prefix: "",
+    critical: false,
+    skip_on_user: false,
+    allow_missing: false,
+    maps: &[],
+    progs: &[],
+};
+
 const FILE_ARR: &[BpfFileDesc] = &[
     BpfFileDesc {
         filename: "/system/etc/bpf/cputimeinstate/timeInState.bpf",
         prefix: "cputimeinstate/",
-        critical: false,
-        skip_on_user: false,
         maps: &[
             MapDesc::new(GID_SYSTEM, PERM_OWO, "cpu_last_pid_map"),
             MapDesc::new(GID_SYSTEM, PERM_OWO, "cpu_last_update_map"),
@@ -242,39 +252,31 @@ const FILE_ARR: &[BpfFileDesc] = &[
             ProgDesc::new(GID_SYSTEM, "tracepoint_sched_sched_process_free"),
             ProgDesc::new(GID_SYSTEM, "tracepoint_sched_sched_switch"),
         ],
+        ..BPF_FILE_DESC_DEFAULT
     },
     BpfFileDesc {
         filename: "/system/etc/bpf/fuseMedia.bpf",
-        prefix: "",
-        critical: false,
-        skip_on_user: false,
-        maps: &[],
         progs: &[ProgDesc::new(GID_MEDIA_RW, "fuse_media")],
+        ..BPF_FILE_DESC_DEFAULT
     },
     BpfFileDesc {
         filename: "/system/etc/bpf/gpuMem.bpf",
-        prefix: "",
-        critical: false,
-        skip_on_user: false,
         maps: &[MapDesc::new(GID_GRAPHICS, PERM_GRO, "gpu_mem_total_map")],
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_gpu_mem_gpu_mem_total")],
+        ..BPF_FILE_DESC_DEFAULT
     },
     BpfFileDesc {
         filename: "/system/etc/bpf/gpuWork.bpf",
-        prefix: "",
-        critical: false,
-        skip_on_user: false,
         maps: &[
             MapDesc::new(GID_GRAPHICS, PERM_GRW, "gpu_work_map"),
             MapDesc::new(GID_GRAPHICS, PERM_GRW, "gpu_work_global_data"),
         ],
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_power_gpu_work_period")],
+        ..BPF_FILE_DESC_DEFAULT
     },
     BpfFileDesc {
         filename: "/system/etc/bpf/memevents/bpfMemEvents.bpf",
         prefix: "memevents/",
-        critical: false,
-        skip_on_user: false,
         maps: &[
             MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "ams_rb"),
             MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "lmkd_rb"),
@@ -312,11 +314,11 @@ const FILE_ARR: &[BpfFileDesc] = &[
                 "tracepoint_kmem_mm_calculate_totalreserve_pages_lmkd",
             ),
         ],
+        ..BPF_FILE_DESC_DEFAULT
     },
     BpfFileDesc {
         filename: "/system/etc/bpf/memevents/bpfMemEventsTest.bpf",
         prefix: "memevents/",
-        critical: false,
         skip_on_user: true,
         maps: &[MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "rb")],
         progs: &[
@@ -329,22 +331,23 @@ const FILE_ARR: &[BpfFileDesc] = &[
             ProgDesc::new_kver(GID_SYSTEM, KVER_6_1, "skfilter_android_trigger_vendor_lmk_kill"),
             ProgDesc::new_kver(GID_ROOT, KVER_6_1, "skfilter_calculate_totalreserve_pages"),
         ],
+        ..BPF_FILE_DESC_DEFAULT
     },
     BpfFileDesc {
         filename: "/system/etc/bpf/bpfRingbufProg.bpf",
-        prefix: "",
         critical: true,
         skip_on_user: true,
         maps: &[MapDesc::new_kver(GID_ROOT, PERM_GRW, KVER_5_10, "test_ringbuf")],
         progs: &[ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_ringbuf_test")],
+        ..BPF_FILE_DESC_DEFAULT
     },
     BpfFileDesc {
         filename: "/vendor/etc/bpf/filterPowerSupplyEvents.bpf",
         prefix: "vendor/",
         critical: true,
-        skip_on_user: false,
-        maps: &[],
+        allow_missing: true,
         progs: &[ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "skfilter_power_supply")],
+        ..BPF_FILE_DESC_DEFAULT
     },
 ];
 
@@ -495,10 +498,13 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         return Ok(());
     }
     let filepath = Path::new(file_desc.filename);
-    // TODO: Make this error once the BPF loader migration completes.
     if !filepath.exists() {
-        info!("Skipping load of {} as it does not exist", filepath.display());
-        return Ok(());
+        if file_desc.allow_missing {
+            info!("Skipping load of {} as it does not exist", filepath.display());
+            return Ok(());
+        } else {
+            return Err(anyhow!("File {} does not exist", filepath.display()));
+        }
     }
     let filename =
         filepath.file_stem().ok_or_else(|| anyhow!("Failed to parse stem from filename"))?;
