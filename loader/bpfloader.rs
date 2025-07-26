@@ -349,7 +349,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
     },
     BpfFileDesc {
         filename: "filterPowerSupplyEvents.bpf",
-        dir: "vendor/etc/bpf/",
+        dir: "/vendor/etc/bpf/",
         prefix: "vendor/",
         critical: true,
         skip_on_user: false,
