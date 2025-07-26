@@ -190,8 +190,6 @@ impl ProgDesc {
 
 struct BpfFileDesc {
     filename: &'static str,
-    // The directory where the BPF file is located.
-    dir: &'static str,
     // Maps and Progs are pinned under /sys/fs/bpf/<prefix>.
     prefix: &'static str,
     // Warning: setting this to 'true' will cause the system to boot loop if there are any issues
@@ -218,8 +216,7 @@ const GID_MEDIA_RW: u32 = AID_MEDIA_RW;
 
 const FILE_ARR: &[BpfFileDesc] = &[
     BpfFileDesc {
-        filename: "timeInState.bpf",
-        dir: "/etc/bpf/cputimeinstate/",
+        filename: "/etc/bpf/cputimeinstate/timeInState.bpf",
         prefix: "cputimeinstate/",
         critical: false,
         skip_on_user: false,
@@ -247,8 +244,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         ],
     },
     BpfFileDesc {
-        filename: "fuseMedia.bpf",
-        dir: "/etc/bpf/",
+        filename: "/etc/bpf/fuseMedia.bpf",
         prefix: "",
         critical: false,
         skip_on_user: false,
@@ -256,8 +252,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         progs: &[ProgDesc::new(GID_MEDIA_RW, "fuse_media")],
     },
     BpfFileDesc {
-        filename: "gpuMem.bpf",
-        dir: "/etc/bpf/",
+        filename: "/etc/bpf/gpuMem.bpf",
         prefix: "",
         critical: false,
         skip_on_user: false,
@@ -265,8 +260,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_gpu_mem_gpu_mem_total")],
     },
     BpfFileDesc {
-        filename: "gpuWork.bpf",
-        dir: "/etc/bpf/",
+        filename: "/etc/bpf/gpuWork.bpf",
         prefix: "",
         critical: false,
         skip_on_user: false,
@@ -277,8 +271,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         progs: &[ProgDesc::new(GID_GRAPHICS, "tracepoint_power_gpu_work_period")],
     },
     BpfFileDesc {
-        filename: "bpfMemEvents.bpf",
-        dir: "/etc/bpf/memevents/",
+        filename: "/etc/bpf/memevents/bpfMemEvents.bpf",
         prefix: "memevents/",
         critical: false,
         skip_on_user: false,
@@ -321,8 +314,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         ],
     },
     BpfFileDesc {
-        filename: "bpfMemEventsTest.bpf",
-        dir: "/etc/bpf/memevents/",
+        filename: "/etc/bpf/memevents/bpfMemEventsTest.bpf",
         prefix: "memevents/",
         critical: false,
         skip_on_user: true,
@@ -339,8 +331,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         ],
     },
     BpfFileDesc {
-        filename: "bpfRingbufProg.bpf",
-        dir: "/etc/bpf/",
+        filename: "/etc/bpf/bpfRingbufProg.bpf",
         prefix: "",
         critical: true,
         skip_on_user: true,
@@ -348,8 +339,7 @@ const FILE_ARR: &[BpfFileDesc] = &[
         progs: &[ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_ringbuf_test")],
     },
     BpfFileDesc {
-        filename: "filterPowerSupplyEvents.bpf",
-        dir: "/vendor/etc/bpf/",
+        filename: "/vendor/etc/bpf/filterPowerSupplyEvents.bpf",
         prefix: "vendor/",
         critical: true,
         skip_on_user: false,
@@ -504,7 +494,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         info!("Skip loading {} on user build", file_desc.filename);
         return Ok(());
     }
-    let filepath = Path::new(file_desc.dir).join(file_desc.filename);
+    let filepath = Path::new(file_desc.filename);
     // TODO: Make this error once the BPF loader migration completes.
     if !filepath.exists() {
         info!("Skipping load of {} as it does not exist", filepath.display());
@@ -515,7 +505,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     let filename = filename.to_str().ok_or_else(|| anyhow!("Failed to parse filename"))?;
 
     let mut ob = ObjectBuilder::default();
-    let mut open_file = ob.open_file(&filepath)?;
+    let mut open_file = ob.open_file(filepath)?;
     // libbpf's open_file attempts to infer the prog type based on the section name. But, some
     // section names are not recognized, so the program type must be set explicitly for them.
     set_prog_types(&mut open_file)?;
