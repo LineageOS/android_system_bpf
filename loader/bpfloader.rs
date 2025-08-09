@@ -143,9 +143,9 @@ fn libbpf_print(level: PrintLevel, mut msg: String) {
         msg.pop();
     }
     match level {
-        PrintLevel::Debug => debug!("{}", msg),
-        PrintLevel::Info => info!("{}", msg),
-        PrintLevel::Warn => warn!("{}", msg),
+        PrintLevel::Debug => debug!("{msg}"),
+        PrintLevel::Info => info!("{msg}"),
+        PrintLevel::Warn => warn!("{msg}"),
     }
 }
 
@@ -618,12 +618,12 @@ fn main() {
     let kmsg_file = unsafe { File::from_raw_fd(kmsg_fd) };
 
     if let Err(logger) = BpfKmsgLogger::init(kmsg_file) {
-        error!("BpfLoader-rs: log::setlogger failed: {}", logger);
+        error!("BpfLoader-rs: log::setlogger failed: {logger}");
     }
 
     // Redirect panic messages to both logcat and serial port
     panic::set_hook(Box::new(|panic_info| {
-        error!("{}", panic_info);
+        error!("{panic_info}");
     }));
 
     // Enable logging from libbpf
