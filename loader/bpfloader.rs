@@ -556,7 +556,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                 break;
             }
         }
-        ensure!(desc_found, "Descriptor for {name} not found!");
+        ensure!(desc_found, "Map descriptor for {name} not found!");
     }
 
     for mut prog in loaded_file.progs_mut() {
@@ -594,7 +594,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                 break;
             }
         }
-        ensure!(desc_found, "Descriptor for {name} not found!");
+        ensure!(desc_found, "Prog descriptor for {name} not found!");
     }
     Ok(())
 }
