@@ -529,7 +529,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                 }
 
                 let pinpath_str = bpffs_path.clone() + "map_" + filename + "_" + &name;
-                let pinpath = Path::new(&pinpath_str);
+
+                // bpffs disallows periods in path names, so replace them with underscores
+                // to align with libbpf's sanitize_pin_path() behavior.
+                let pinpath_sanitized_str = pinpath_str.replace('.', "_");
+
+                let pinpath = Path::new(&pinpath_sanitized_str);
                 debug!("Pinning: {}", pinpath.display());
                 map.pin(pinpath).map_err(|e| anyhow!("Failed to pin map {name}: {e}"))?;
                 fs::set_permissions(pinpath, Permissions::from_mode(map_desc.perms as _)).map_err(
@@ -574,7 +579,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                     continue;
                 }
                 let pinpath_str = bpffs_path.clone() + "prog_" + filename + "_" + &name;
-                let pinpath = Path::new(&pinpath_str);
+
+                // bpffs disallows periods in path names, so replace them with underscores
+                // to align with libbpf's sanitize_pin_path() behavior.
+                let pinpath_sanitized_str = pinpath_str.replace('.', "_");
+
+                let pinpath = Path::new(&pinpath_sanitized_str);
                 debug!("Pinning: {}", pinpath.display());
                 prog.pin(pinpath).map_err(|e| anyhow!("Failed to pin prog {name}: {e}"))?;
                 fs::set_permissions(pinpath, Permissions::from_mode(PERM_UGR as _)).map_err(
