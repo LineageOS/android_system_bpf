@@ -518,10 +518,6 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         let name =
             map.name().to_str().ok_or_else(|| anyhow!("Failed to parse map name into UTF-8"))?;
         let name = String::from(name);
-        if name.ends_with(".rodata") {
-            // Skip pinning map for .rodata section.
-            continue;
-        }
         for map_desc in file_desc.maps {
             if map_desc.name == name {
                 desc_found = true;
@@ -556,6 +552,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                 break;
             }
         }
+        if !desc_found && (name.contains(".rodata") || name.contains(".data")) {
+            // Skip required pinning map for .rodata, .rodata.str1.1, and .data sections.
+            info!("Optional map descriptor for {name} not found, ignoring");
+            continue;
+        }
+
         ensure!(desc_found, "Map descriptor for {name} not found!");
     }
 
