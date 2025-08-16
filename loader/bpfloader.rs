@@ -176,15 +176,23 @@ struct ProgDesc {
     // Prog is loaded if kernel_version() is >= min_kver and < max_kver
     min_kver: u32,
     max_kver: u32,
+    auto_attach: bool,
 }
 
 impl ProgDesc {
     pub const fn new(group: u32, name: &'static str) -> Self {
-        ProgDesc { name, owner: AID_ROOT, group, min_kver: KVER_NONE, max_kver: KVER_INF }
+        ProgDesc {
+            name,
+            owner: AID_ROOT,
+            group,
+            min_kver: KVER_NONE,
+            max_kver: KVER_INF,
+            auto_attach: false,
+        }
     }
 
     pub const fn new_kver(group: u32, min_kver: u32, name: &'static str) -> Self {
-        ProgDesc { name, owner: AID_ROOT, group, min_kver, max_kver: KVER_INF }
+        ProgDesc { name, owner: AID_ROOT, group, min_kver, max_kver: KVER_INF, auto_attach: false }
     }
 }
 
@@ -529,7 +537,12 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                 }
 
                 let pinpath_str = bpffs_path.clone() + "map_" + filename + "_" + &name;
-                let pinpath = Path::new(&pinpath_str);
+
+                // bpffs disallows periods in path names, so replace them with underscores
+                // to align with libbpf's sanitize_pin_path() behavior.
+                let pinpath_sanitized_str = pinpath_str.replace('.', "_");
+
+                let pinpath = Path::new(&pinpath_sanitized_str);
                 debug!("Pinning: {}", pinpath.display());
                 map.pin(pinpath).map_err(|e| anyhow!("Failed to pin map {name}: {e}"))?;
                 fs::set_permissions(pinpath, Permissions::from_mode(map_desc.perms as _)).map_err(
@@ -574,9 +587,30 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                     continue;
                 }
                 let pinpath_str = bpffs_path.clone() + "prog_" + filename + "_" + &name;
-                let pinpath = Path::new(&pinpath_str);
-                debug!("Pinning: {}", pinpath.display());
-                prog.pin(pinpath).map_err(|e| anyhow!("Failed to pin prog {name}: {e}"))?;
+
+                // bpffs disallows periods in path names, so replace them with underscores
+                // to align with libbpf's sanitize_pin_path() behavior.
+                let pinpath_sanitized_str = pinpath_str.replace('.', "_");
+
+                let pinpath = Path::new(&pinpath_sanitized_str);
+                if prog_desc.auto_attach {
+                    debug!("Auto-attaching program: {}", name);
+                    let mut link =
+                        prog.attach().map_err(|e| anyhow!("Failed to attach prog {name}: {e}"))?;
+                    debug!("Pinning link for {}: {}", name, pinpath.display());
+                    link.pin(pinpath).map_err(|e| anyhow!("Failed to pin link for {name}: {e}"))?;
+                    info!("Successfully attached and pinned program {}", name);
+                    // The Link object's destructor calls bpf_link__destroy(), which
+                    // would normally detach the program when the object goes out of scope.
+                    // By calling disconnect() here, we modify the link so that the
+                    // subsequent bpf_link__destroy() call does not detach the BPF
+                    // resource. This, combined with pinning, ensures the attachment
+                    // persists after the bpfloader process exits.
+                    link.disconnect();
+                } else {
+                    debug!("Pinning program {}: {}", name, pinpath.display());
+                    prog.pin(pinpath).map_err(|e| anyhow!("Failed to pin prog {name}: {e}"))?;
+                }
                 fs::set_permissions(pinpath, Permissions::from_mode(PERM_UGR as _)).map_err(
                     |e| {
                         anyhow!(
