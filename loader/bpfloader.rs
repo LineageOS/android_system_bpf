@@ -29,7 +29,7 @@ use libc::{
     S_IWOTH, S_IWUSR,
 };
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
-use rustutils::system_properties;
+use rustutils::android::system_properties;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::{
