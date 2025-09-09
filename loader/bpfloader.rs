@@ -234,6 +234,9 @@ const BPF_FILE_DESC_DEFAULT: BpfFileDesc = BpfFileDesc {
     progs: &[],
 };
 
+// Sections like .rodata, .rodata.str1.1, etc. do not require pinning
+const OPTIONAL_SEC: &[&str] = &[".data", ".kconfig", ".rodata"];
+
 const FILE_ARR: &[BpfFileDesc] = &[
     BpfFileDesc {
         filename: "/system/etc/bpf/cputimeinstate/timeInState.bpf",
@@ -565,8 +568,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                 break;
             }
         }
-        if !desc_found && (name.contains(".rodata") || name.contains(".data")) {
-            // Skip required pinning map for .rodata, .rodata.str1.1, and .data sections.
+        if !desc_found && OPTIONAL_SEC.iter().any(|&section| name.contains(section)) {
             info!("Optional map descriptor for {name} not found, ignoring");
             continue;
         }
