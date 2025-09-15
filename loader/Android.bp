@@ -104,12 +104,12 @@ rust_binary {
     name: "bpfloader",
     defaults: ["bpfloader_defaults"],
     required: [
-        "bpftool",
         "timeInState.bpf",
     ],
     product_variables: {
         debuggable: {
             required: [
+                "bpftool",
                 "bpfRingbufProg.bpf",
             ],
         },
