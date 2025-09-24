@@ -384,13 +384,6 @@ const KERNEL_WAKELOCK_DURATION_TEST_FILE: BpfFileDesc = BpfFileDesc {
     ..BPF_FILE_DESC_DEFAULT
 };
 
-const DMABUF_ITERATOR_FILE: BpfFileDesc = BpfFileDesc {
-    filename: "/system/etc/bpf/dmabuf/dmabufIter.bpf",
-    prefix: "dmabuf/",
-    progs: &[ProgDesc { auto_attach: true, ..ProgDesc::new(GID_SYSTEM, "iter_dmabuf") }],
-    ..BPF_FILE_DESC_DEFAULT
-};
-
 // TODO: Remove this code when fuse-bpf is upstreamed
 fn set_fuse_prog_type(prog: OpenProgramMut) -> Result<(), anyhow::Error> {
     let path = Path::new("/sys/fs/fuse/bpf_prog_type_fuse");
@@ -680,10 +673,6 @@ fn get_file_vec() -> Vec<BpfFileDesc> {
     if android_bpfprogs_flags::kernel_wakelock_duration() {
         file_vec.push(KERNEL_WAKELOCK_DURATION_FILE);
         file_vec.push(KERNEL_WAKELOCK_DURATION_TEST_FILE);
-    }
-
-    if android_bpfprogs_flags::load_dmabuf_iterator() {
-        file_vec.push(DMABUF_ITERATOR_FILE);
     }
 
     file_vec

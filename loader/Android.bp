@@ -107,7 +107,6 @@ rust_binary {
     required: [
         "kernelWakelockDuration.bpf",
         "timeInState.bpf",
-        "dmabufIter.bpf",
     ],
     product_variables: {
         debuggable: {
