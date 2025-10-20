@@ -29,7 +29,7 @@ use libc::{
     S_IWOTH, S_IWUSR,
 };
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
-use rustutils::system_properties;
+use rustutils::android::system_properties;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::{
@@ -196,6 +196,7 @@ impl ProgDesc {
     }
 }
 
+#[derive(Clone)]
 struct BpfFileDesc {
     filename: &'static str,
     // Maps and Progs are pinned under /sys/fs/bpf/<prefix>.
@@ -233,6 +234,9 @@ const BPF_FILE_DESC_DEFAULT: BpfFileDesc = BpfFileDesc {
     maps: &[],
     progs: &[],
 };
+
+// Sections like .rodata, .rodata.str1.1, etc. do not require pinning
+const OPTIONAL_SEC: &[&str] = &[".data", ".kconfig", ".rodata"];
 
 const FILE_ARR: &[BpfFileDesc] = &[
     BpfFileDesc {
@@ -350,6 +354,42 @@ const FILE_ARR: &[BpfFileDesc] = &[
         ..BPF_FILE_DESC_DEFAULT
     },
 ];
+
+const KERNEL_WAKELOCK_DURATION_FILE: BpfFileDesc = BpfFileDesc {
+    filename: "/system/etc/bpf/kernelWakelockDuration.bpf",
+    prefix: "kernelwakelockduration/",
+    maps: &[MapDesc::new(GID_SYSTEM, PERM_GRO, "program_state")],
+    progs: &[
+        ProgDesc {
+            auto_attach: true,
+            ..ProgDesc::new(GID_SYSTEM, "tracepoint_power_wakeup_source_activate")
+        },
+        ProgDesc {
+            auto_attach: true,
+            ..ProgDesc::new(GID_SYSTEM, "tracepoint_power_wakeup_source_deactivate")
+        },
+    ],
+    ..BPF_FILE_DESC_DEFAULT
+};
+
+const KERNEL_WAKELOCK_DURATION_TEST_FILE: BpfFileDesc = BpfFileDesc {
+    filename: "system/etc/bpf/kernelWakelockDurationTest.bpf",
+    prefix: "kernelwakelockduration/",
+    skip_on_user: true,
+    maps: &[MapDesc::new(GID_SYSTEM, PERM_GRO, "program_state")],
+    progs: &[
+        ProgDesc::new(GID_SYSTEM, "tracepoint_power_wakeup_source_activate"),
+        ProgDesc::new(GID_SYSTEM, "tracepoint_power_wakeup_source_deactivate"),
+    ],
+    ..BPF_FILE_DESC_DEFAULT
+};
+
+const DMABUF_ITERATOR_FILE: BpfFileDesc = BpfFileDesc {
+    filename: "/system/etc/bpf/dmabuf/dmabufIter.bpf",
+    prefix: "dmabuf/",
+    progs: &[ProgDesc { auto_attach: true, ..ProgDesc::new(GID_SYSTEM, "iter_dmabuf") }],
+    ..BPF_FILE_DESC_DEFAULT
+};
 
 // TODO: Remove this code when fuse-bpf is upstreamed
 fn set_fuse_prog_type(prog: OpenProgramMut) -> Result<(), anyhow::Error> {
@@ -565,8 +605,7 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
                 break;
             }
         }
-        if !desc_found && (name.contains(".rodata") || name.contains(".data")) {
-            // Skip required pinning map for .rodata, .rodata.str1.1, and .data sections.
+        if !desc_found && OPTIONAL_SEC.iter().any(|&section| name.contains(section)) {
             info!("Optional map descriptor for {name} not found, ignoring");
             continue;
         }
@@ -635,10 +674,28 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+fn get_file_vec() -> Vec<BpfFileDesc> {
+    let mut file_vec = FILE_ARR.to_vec();
+
+    if android_bpfprogs_flags::kernel_wakelock_duration() {
+        file_vec.push(KERNEL_WAKELOCK_DURATION_FILE);
+        file_vec.push(KERNEL_WAKELOCK_DURATION_TEST_FILE);
+    }
+
+    if android_bpfprogs_flags::load_dmabuf_iterator() {
+        file_vec.push(DMABUF_ITERATOR_FILE);
+    }
+
+    file_vec
+}
+
 fn load_libbpf_progs() {
     info!("Loading libbpf programs");
-    for file_desc in FILE_ARR {
-        if let Err(e) = libbpf_worker(file_desc) {
+
+    let file_vec = get_file_vec();
+
+    for file_desc in file_vec {
+        if let Err(e) = libbpf_worker(&file_desc) {
             if file_desc.critical {
                 panic!("Error when loading {0}: {e}", file_desc.filename);
             } else {
