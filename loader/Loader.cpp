@@ -86,20 +86,18 @@ typedef struct {
     unique_fd prog_fd; // fd after loading
 } codeSection;
 
-static int readElfHeader(ifstream& elfFile, Elf64_Ehdr* eh) {
+static bool readElfHeader(ifstream& elfFile, Elf64_Ehdr* eh) {
     elfFile.seekg(0);
-    if (elfFile.fail()) return -1;
-
-    if (!elfFile.read((char*)eh, sizeof(*eh))) return -1;
-
-    return 0;
+    if (elfFile.fail()) return false;
+    if (!elfFile.read((char*)eh, sizeof(*eh))) return false;
+    return true;
 }
 
 // Reads all section header tables into an Shdr array
 static int readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable) {
     Elf64_Ehdr eh;
 
-    if (readElfHeader(elfFile, &eh)) return -1;
+    if (!readElfHeader(elfFile, &eh)) return -1;
 
     elfFile.seekg(eh.e_shoff);
     if (elfFile.fail()) return -1;
@@ -129,7 +127,7 @@ static int readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
 // Read whole section header string table
 static int readSectionHeaderStrtab(ifstream& elfFile, vector<char>& strtab) {
     Elf64_Ehdr eh;
-    if (readElfHeader(elfFile, &eh)) return -1;
+    if (!readElfHeader(elfFile, &eh)) return -1;
     if (readSectionByIdx(elfFile, eh.e_shstrndx, strtab)) return -1;
     return 0;
 }
