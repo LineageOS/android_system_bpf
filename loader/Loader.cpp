@@ -70,13 +70,10 @@ namespace bpf {
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
 static string pathToObjName(const string& path) {
-    // extract everything after the final slash, ie. this is the filename 'foo@1.o' or 'bar.o'
+    // extract everything after the final slash, ie. this is the filename 'foo.o'
     string filename = android::base::Split(path, "/").back();
-    // strip off everything from the final period onwards (strip '.o' suffix), ie. 'foo@1' or 'bar'
-    string name = filename.substr(0, filename.find_last_of('.'));
-    // strip any potential @1 suffix, this will leave us with just 'foo' or 'bar'
-    // this can be used to provide duplicate programs (mux based on the bpfloader version)
-    return name.substr(0, name.find_last_of('@'));
+    // strip off everything from the final period onwards (strip '.o' suffix), ie. 'foo'
+    return filename.substr(0, filename.find_last_of('.'));
 }
 
 typedef struct {
