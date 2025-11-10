@@ -94,26 +94,26 @@ static bool readElfHeader(ifstream& elfFile, Elf64_Ehdr* eh) {
 }
 
 // Reads all section header tables into an Shdr array
-static int readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable) {
+static bool readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable) {
     Elf64_Ehdr eh;
 
-    if (!readElfHeader(elfFile, &eh)) return -1;
+    if (!readElfHeader(elfFile, &eh)) return false;
 
     elfFile.seekg(eh.e_shoff);
-    if (elfFile.fail()) return -1;
+    if (elfFile.fail()) return false;
 
     // Read shdr table entries
     shTable.resize(eh.e_shnum);
 
-    if (!elfFile.read((char*)shTable.data(), eh.e_shnum * eh.e_shentsize)) return -1;
+    if (!elfFile.read((char*)shTable.data(), eh.e_shnum * eh.e_shentsize)) return false;
 
-    return 0;
+    return true;
 }
 
 // Read a section by its index - for ex to get sec hdr strtab blob
 static int readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
     vector<Elf64_Shdr> shTable;
-    if (readSectionHeadersAll(elfFile, shTable)) return -1;
+    if (!readSectionHeadersAll(elfFile, shTable)) return -1;
 
     elfFile.seekg(shTable[id].sh_offset);
     if (elfFile.fail()) return -1;
@@ -147,7 +147,7 @@ static int getSymName(ifstream& elfFile, int nameOff, string& name) {
 template <typename T>
 static int readSectionByName(const char* name, ifstream& elfFile, vector<T>& data) {
     vector<Elf64_Shdr> shTable;
-    if (readSectionHeadersAll(elfFile, shTable)) return -1;
+    if (!readSectionHeadersAll(elfFile, shTable)) return -1;
 
     vector<char> secStrTab;
     if (readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
@@ -172,7 +172,7 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<T>& dat
 
 static int readSectionByType(ifstream& elfFile, int type, vector<char>& data) {
     vector<Elf64_Shdr> shTable;
-    if (readSectionHeadersAll(elfFile, shTable)) return -1;
+    if (!readSectionHeadersAll(elfFile, shTable)) return -1;
 
     for (int i = 0; i < (int)shTable.size(); i++) {
         if ((int)shTable[i].sh_type != type) continue;
@@ -220,8 +220,7 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
     if (ret) return ret;
 
     // Get index of section
-    ret = readSectionHeadersAll(elfFile, shTable);
-    if (ret) return ret;
+    if (!readSectionHeadersAll(elfFile, shTable)) return -1;
 
     int sec_idx = -1;
     for (int i = 0; i < (int)shTable.size(); i++) {
@@ -259,8 +258,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
     vector<Elf64_Shdr> shTable;
     int entries, ret = 0;
 
-    ret = readSectionHeadersAll(elfFile, shTable);
-    if (ret) return ret;
+    if (!readSectionHeadersAll(elfFile, shTable)) return -1;
     entries = shTable.size();
 
     vector<struct bpf_prog_def> pd;
