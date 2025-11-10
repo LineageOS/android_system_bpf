@@ -133,14 +133,14 @@ static bool readSectionHeaderStrtab(ifstream& elfFile, vector<char>& strtab) {
 }
 
 // Get name from offset in strtab
-static int getSymName(ifstream& elfFile, int nameOff, string& name) {
+static bool getSymName(ifstream& elfFile, int nameOff, string& name) {
     vector<char> secStrTab;
-    if (!readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
+    if (!readSectionHeaderStrtab(elfFile, secStrTab)) return false;
 
-    if (nameOff >= (int)secStrTab.size()) return -1;
+    if (nameOff >= (int)secStrTab.size()) return false;
 
     name = string(secStrTab.data() + nameOff);
-    return 0;
+    return true;
 }
 
 // Reads a full section by name - example to get the GPL license
@@ -224,8 +224,7 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
 
     int sec_idx = -1;
     for (int i = 0; i < (int)shTable.size(); i++) {
-        ret = getSymName(elfFile, shTable[i].sh_name, name);
-        if (ret) return ret;
+        if (!getSymName(elfFile, shTable[i].sh_name, name)) return -1;
 
         if (!name.compare(sectionName)) {
             sec_idx = i;
@@ -244,8 +243,7 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
 
         if (symtab[i].st_shndx == sec_idx) {
             string s;
-            ret = getSymName(elfFile, symtab[i].st_name, s);
-            if (ret) return ret;
+            if (!getSymName(elfFile, symtab[i].st_name, s)) return -1;
             names.push_back(s);
         }
     }
@@ -273,8 +271,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         codeSection cs_temp;
         cs_temp.type = BPF_PROG_TYPE_UNSPEC;
 
-        ret = getSymName(elfFile, shTable[i].sh_name, name);
-        if (ret) return ret;
+        if (!getSymName(elfFile, shTable[i].sh_name, name)) return -1;
 
         if (!StartsWith(name, "skfilter/")) continue;
 
@@ -301,8 +298,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
 
         // Check for rel section
         if (cs_temp.data.size() > 0 && i < entries) {
-            ret = getSymName(elfFile, shTable[i + 1].sh_name, name);
-            if (ret) return ret;
+            if (!getSymName(elfFile, shTable[i + 1].sh_name, name)) return -1;
 
             if (name == (".rel" + oldName)) {
                 if (!readSectionByIdx(elfFile, i + 1, cs_temp.rel_data)) return -1;
@@ -327,7 +323,8 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
 
     if (index >= (int)symtab.size()) return -1;
 
-    return getSymName(elfFile, symtab[index].st_name, name);
+    if (!getSymName(elfFile, symtab[index].st_name, name)) return -1;
+    return 0;
 }
 
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds) {
