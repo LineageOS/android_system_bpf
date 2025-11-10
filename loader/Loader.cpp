@@ -582,42 +582,37 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     return 0;
 }
 
-int loadProg(const char* elfPath, bool* isCritical) {
+static bool loadProg(const char* elfPath, bool* isCritical) {
     vector<char> license;
     vector<char> critical;
     vector<codeSection> cs;
     vector<unique_fd> mapFds;
-    int ret;
 
-    if (!isCritical) return -1;
+    if (!isCritical) return false;
     *isCritical = false;
 
     ifstream elfFile(elfPath, ios::in | ios::binary);
-    if (!elfFile.is_open()) return -1;
+    if (!elfFile.is_open()) return false;
 
-    ret = readSectionByName("critical", elfFile, critical);
-    *isCritical = !ret;
+    *isCritical = !readSectionByName("critical", elfFile, critical);
 
-    ret = readSectionByName("license", elfFile, license);
-    if (ret) {
+    if (readSectionByName("license", elfFile, license)) {
         ALOGE("Couldn't find license in %s", elfPath);
-        return ret;
+        return false;
     }
 
     ALOGI("Platform BpfLoader loading %s%s ELF object %s with license %s",
           *isCritical ? "critical for " : "optional", *isCritical ? (char*)critical.data() : "",
           elfPath, (char*)license.data());
 
-    ret = readCodeSections(elfFile, cs);
-    if (ret) {
+    if (readCodeSections(elfFile, cs)) {
         ALOGE("Couldn't read all code sections in %s", elfPath);
-        return ret;
+        return false;
     }
 
-    ret = createMaps(elfPath, elfFile, mapFds);
-    if (ret) {
-        ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
-        return ret;
+    if (createMaps(elfPath, elfFile, mapFds)) {
+        ALOGE("Failed to create maps for %s", elfPath);
+        return false;
     }
 
     for (int i = 0; i < (int)mapFds.size(); i++)
@@ -625,10 +620,12 @@ int loadProg(const char* elfPath, bool* isCritical) {
 
     applyMapRelo(elfFile, mapFds, cs);
 
-    ret = loadCodeSections(elfPath, cs, string(license.data()));
-    if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);
+    if (loadCodeSections(elfPath, cs, string(license.data()))) {
+        ALOGE("Failed to load programs");
+        return false;
+    }
 
-    return ret;
+    return true;
 }
 
 static bool loadAllElfObjects() {
@@ -645,10 +642,9 @@ static bool loadAllElfObjects() {
             progPath += s;
 
             bool critical;
-            int ret = loadProg(progPath.c_str(), &critical);
-            if (ret) {
+            if (!loadProg(progPath.c_str(), &critical)) {
                 if (critical) success = false;
-                ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), strerror(-ret));
+                ALOGE("Failed to load object: %s", progPath.c_str());
             } else {
                 ALOGV("Loaded object: %s", progPath.c_str());
             }
