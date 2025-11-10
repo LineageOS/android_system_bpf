@@ -111,24 +111,24 @@ static bool readSectionHeadersAll(ifstream& elfFile, vector<Elf64_Shdr>& shTable
 }
 
 // Read a section by its index - for ex to get sec hdr strtab blob
-static int readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
+static bool readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
     vector<Elf64_Shdr> shTable;
-    if (!readSectionHeadersAll(elfFile, shTable)) return -1;
+    if (!readSectionHeadersAll(elfFile, shTable)) return false;
 
     elfFile.seekg(shTable[id].sh_offset);
-    if (elfFile.fail()) return -1;
+    if (elfFile.fail()) return false;
 
     sec.resize(shTable[id].sh_size);
-    if (!elfFile.read(sec.data(), shTable[id].sh_size)) return -1;
+    if (!elfFile.read(sec.data(), shTable[id].sh_size)) return false;
 
-    return 0;
+    return true;
 }
 
 // Read whole section header string table
 static int readSectionHeaderStrtab(ifstream& elfFile, vector<char>& strtab) {
     Elf64_Ehdr eh;
     if (!readElfHeader(elfFile, &eh)) return -1;
-    if (readSectionByIdx(elfFile, eh.e_shstrndx, strtab)) return -1;
+    if (!readSectionByIdx(elfFile, eh.e_shstrndx, strtab)) return -1;
     return 0;
 }
 
@@ -286,8 +286,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         cs_temp.type = BPF_PROG_TYPE_SOCKET_FILTER;
         cs_temp.name = name;
 
-        ret = readSectionByIdx(elfFile, i, cs_temp.data);
-        if (ret) return ret;
+        if (!readSectionByIdx(elfFile, i, cs_temp.data)) return -1;
         ALOGV("Loaded code section %d (%s)", i, name.c_str());
 
         vector<string> csSymNames;
@@ -306,8 +305,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
             if (ret) return ret;
 
             if (name == (".rel" + oldName)) {
-                ret = readSectionByIdx(elfFile, i + 1, cs_temp.rel_data);
-                if (ret) return ret;
+                if (!readSectionByIdx(elfFile, i + 1, cs_temp.rel_data)) return -1;
                 ALOGV("Loaded relo section %d (%s)", i, name.c_str());
             }
         }
