@@ -631,8 +631,8 @@ int loadProg(const char* elfPath, bool* isCritical) {
     return ret;
 }
 
-int loadAllElfObjects() {
-    int retVal = 0;
+static bool loadAllElfObjects() {
+    bool success = true;
     DIR* dir;
     struct dirent* ent;
 
@@ -647,7 +647,7 @@ int loadAllElfObjects() {
             bool critical;
             int ret = loadProg(progPath.c_str(), &critical);
             if (ret) {
-                if (critical) retVal = ret;
+                if (critical) success = false;
                 ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), strerror(-ret));
             } else {
                 ALOGV("Loaded object: %s", progPath.c_str());
@@ -655,7 +655,7 @@ int loadAllElfObjects() {
         }
         closedir(dir);
     }
-    return retVal;
+    return success;
 }
 
 }  // namespace bpf
@@ -671,7 +671,7 @@ void vendorBpfLoader() {
     android::base::InitLogging(const_cast<char**>(argv), &android::base::KernelLogger);
 
     // Load all ELF objects, create programs and maps, and pin them
-    if (android::bpf::loadAllElfObjects()) {
+    if (!android::bpf::loadAllElfObjects()) {
         ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS FROM /vendor/etc/bpf ===");
         ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
         ALOGE("If this triggers randomly, you might be hitting some memory allocation "
