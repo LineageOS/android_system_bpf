@@ -125,17 +125,17 @@ static bool readSectionByIdx(ifstream& elfFile, int id, vector<char>& sec) {
 }
 
 // Read whole section header string table
-static int readSectionHeaderStrtab(ifstream& elfFile, vector<char>& strtab) {
+static bool readSectionHeaderStrtab(ifstream& elfFile, vector<char>& strtab) {
     Elf64_Ehdr eh;
-    if (!readElfHeader(elfFile, &eh)) return -1;
-    if (!readSectionByIdx(elfFile, eh.e_shstrndx, strtab)) return -1;
-    return 0;
+    if (!readElfHeader(elfFile, &eh)) return false;
+    if (!readSectionByIdx(elfFile, eh.e_shstrndx, strtab)) return false;
+    return true;
 }
 
 // Get name from offset in strtab
 static int getSymName(ifstream& elfFile, int nameOff, string& name) {
     vector<char> secStrTab;
-    if (readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
+    if (!readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
 
     if (nameOff >= (int)secStrTab.size()) return -1;
 
@@ -150,7 +150,7 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<T>& dat
     if (!readSectionHeadersAll(elfFile, shTable)) return -1;
 
     vector<char> secStrTab;
-    if (readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
+    if (!readSectionHeaderStrtab(elfFile, secStrTab)) return -1;
 
     for (int i = 0; i < (int)shTable.size(); i++) {
         char* secname = secStrTab.data() + shTable[i].sh_name;
