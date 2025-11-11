@@ -280,7 +280,6 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         cs_temp.name = name;
 
         if (!readSectionByIdx(elfFile, i, cs_temp.data)) return -1;
-        ALOGV("Loaded code section %d (%s)", i, name.c_str());
 
         vector<string> csSymNames;
         ret = getSectionSymNames(elfFile, oldName, csSymNames, STT_FUNC);
@@ -298,14 +297,10 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
 
             if (name == (".rel" + oldName)) {
                 if (!readSectionByIdx(elfFile, i + 1, cs_temp.rel_data)) return -1;
-                ALOGV("Loaded relo section %d (%s)", i, name.c_str());
             }
         }
 
-        if (cs_temp.data.size() > 0) {
-            cs.push_back(std::move(cs_temp));
-            ALOGV("Adding section %d to cs list", i);
-        }
+        if (cs_temp.data.size() > 0) cs.push_back(std::move(cs_temp));
     }
     return 0;
 }
@@ -375,7 +370,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             fd.reset(mapRetrieveRO(mapPinLoc.c_str()));
             saved_errno = errno;
-            ALOGV("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
             reuse = true;
         } else {
             union bpf_attr req = {
@@ -388,7 +382,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             strlcpy(req.map_name, mapNames[i].c_str(), sizeof(req.map_name));
             fd.reset(bpf(BPF_MAP_CREATE, req));
             saved_errno = errno;
-            ALOGV("bpf_create_map name %s, ret: %d", mapNames[i].c_str(), fd.get());
         }
 
         if (!fd.ok()) return -saved_errno;
@@ -430,13 +423,6 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
 
     insnIndex = offset / sizeof(struct bpf_insn);
     insn = &insns[insnIndex];
-
-    // Occasionally might be useful for relocation debugging, but pretty spammy
-    if (0) {
-        ALOGV("applying relo to instruction at byte offset: %llu, "
-              "insn offset %d, insn %llx",
-              (unsigned long long)offset, insnIndex, *(unsigned long long*)insn);
-    }
 
     if (insn->code != (BPF_LD | BPF_IMM | BPF_DW)) {
         ALOGE("invalid relo for insn %d: code 0x%x", insnIndex, insn->code);
@@ -514,8 +500,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         string progPinLoc = string("/sys/fs/bpf/vendor/prog_") + objName + '_' + name;
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
-            ALOGV("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
-                  (!fd.ok() ? std::strerror(errno) : "no error"));
             reuse = true;
         } else {
             vector<char> log_buf(BPF_LOAD_LOG_SZ, 0);
@@ -611,9 +595,6 @@ static bool loadProg(const char* elfPath, bool* isCritical) {
         return false;
     }
 
-    for (int i = 0; i < (int)mapFds.size(); i++)
-        ALOGV("map_fd found at %d is %d in %s", i, mapFds[i].get(), elfPath);
-
     applyMapRelo(elfFile, mapFds, cs);
 
     if (loadCodeSections(elfPath, cs, string(license.data()))) {
@@ -641,8 +622,6 @@ static bool loadAllElfObjects() {
             if (!loadProg(progPath.c_str(), &critical)) {
                 if (critical) success = false;
                 ALOGE("Failed to load object: %s", progPath.c_str());
-            } else {
-                ALOGV("Loaded object: %s", progPath.c_str());
             }
         }
         closedir(dir);
