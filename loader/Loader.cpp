@@ -331,21 +331,19 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     ret = getSectionSymNames(elfFile, "maps", mapNames);
     if (ret) return ret;
 
-    unsigned kvers = kernelVersion();
-
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (md[i].zero != 0) abort();
 
-        if (kvers < md[i].min_kver) {
+        if (kernelVer < md[i].min_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x >= 0x%x",
-                  mapNames[i].c_str(), kvers, md[i].min_kver);
+                  mapNames[i].c_str(), kernelVer, md[i].min_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
-        if (kvers >= md[i].max_kver) {
+        if (kernelVer >= md[i].max_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x < 0x%x",
-                  mapNames[i].c_str(), kvers, md[i].max_kver);
+                  mapNames[i].c_str(), kernelVer, md[i].max_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
@@ -462,13 +460,6 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
 }
 
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license) {
-    unsigned kvers = kernelVersion();
-
-    if (!kvers) {
-        ALOGE("unable to get kernel version");
-        return -EINVAL;
-    }
-
     string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
@@ -483,9 +474,9 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
         unsigned min_kver = cs[i].prog_def->min_kver;
         unsigned max_kver = cs[i].prog_def->max_kver;
-        if (kvers < min_kver || kvers >= max_kver) {
-            ALOGD("skipping program cs[%d].name:%s min_kver:%x max_kver:%x (kvers:%x)",
-                  i, name.c_str(), min_kver, max_kver, kvers);
+        if (kernelVer < min_kver || kernelVer >= max_kver) {
+            ALOGD("skipping program cs[%d].name:%s min_kver:%x max_kver:%x (kver:%x)",
+                  i, name.c_str(), min_kver, max_kver, kernelVer);
             continue;
         }
 
@@ -506,7 +497,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
             union bpf_attr req = {
               .prog_type = cs[i].type,
-              .kern_version = kvers,
+              .kern_version = kernelVer,
               .license = ptr_to_u64(license.c_str()),
               .insns = ptr_to_u64(cs[i].data.data()),
               .insn_cnt = static_cast<__u32>(cs[i].data.size() / sizeof(struct bpf_insn)),
