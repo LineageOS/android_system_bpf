@@ -417,8 +417,7 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
 static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<codeSection>& cs) {
     vector<string> mapNames;
 
-    int ret = getSectionSymNames(elfFile, "maps", mapNames);
-    if (ret) return;
+    if (getSectionSymNames(elfFile, "maps", mapNames)) return;
 
     for (int k = 0; k != (int)cs.size(); k++) {
         Elf64_Rel* rel = (Elf64_Rel*)(cs[k].rel_data.data());
@@ -428,8 +427,7 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
             int symIndex = ELF64_R_SYM(rel[i].r_info);
             string symName;
 
-            ret = getSymNameByIdx(elfFile, symIndex, symName);
-            if (ret) return;
+            if (getSymNameByIdx(elfFile, symIndex, symName)) return;
 
             // Find the map fd and apply relo
             for (int j = 0; j < (int)mapNames.size(); j++) {
