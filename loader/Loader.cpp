@@ -301,18 +301,16 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
     return 0;
 }
 
-static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds) {
-    int ret;
+static bool createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds) {
     vector<struct bpf_map_def> md;
     vector<string> mapNames;
     string objName = pathToObjName(string(elfPath));
 
-    ret = readSectionByName("maps", elfFile, md);
-    if (ret == -2) return 0;  // no maps to read
-    if (ret) return ret;
+    int ret = readSectionByName("maps", elfFile, md);
+    if (ret == -2) return true;  // no maps to read
+    if (ret) return false;
 
-    ret = getSectionSymNames(elfFile, "maps", mapNames);
-    if (ret) return ret;
+    if (getSectionSymNames(elfFile, "maps", mapNames)) return false;
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (md[i].zero != 0) abort();
@@ -346,11 +344,9 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                            (md[i].shared ? "" : objName) + "_" + mapNames[i];
         bool reuse = false;
         unique_fd fd;
-        int saved_errno;
 
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             fd.reset(mapRetrieveRO(mapPinLoc.c_str()));
-            saved_errno = errno;
             reuse = true;
         } else {
             union bpf_attr req = {
@@ -362,38 +358,29 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             };
             strlcpy(req.map_name, mapNames[i].c_str(), sizeof(req.map_name));
             fd.reset(bpf(BPF_MAP_CREATE, req));
-            saved_errno = errno;
         }
 
-        if (!fd.ok()) return -saved_errno;
+        if (!fd.ok()) return false;
 
         if (!reuse) {
-            ret = bpfFdPin(fd, mapPinLoc.c_str());
-            if (ret) {
-                int err = errno;
-                ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
-                return -err;
+            if (bpfFdPin(fd, mapPinLoc.c_str())) {
+                ALOGE("pin %s -> [%d]", mapPinLoc.c_str(), errno);
+                return false;
             }
-            ret = chmod(mapPinLoc.c_str(), md[i].mode);
-            if (ret) {
-                int err = errno;
-                ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapPinLoc.c_str(), md[i].mode, ret, err,
-                      strerror(err));
-                return -err;
+            if (chmod(mapPinLoc.c_str(), md[i].mode)) {
+                ALOGE("chmod(%s, 0%o) -> [%d]", mapPinLoc.c_str(), md[i].mode, errno);
+                return false;
             }
-            ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
-            if (ret) {
-                int err = errno;
-                ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), md[i].uid, md[i].gid,
-                      ret, err, strerror(err));
-                return -err;
+            if (chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid)) {
+                ALOGE("chown(%s, %u, %u) -> [%d]", mapPinLoc.c_str(), md[i].uid, md[i].gid, errno);
+                return false;
             }
         }
 
         mapFds.push_back(std::move(fd));
     }
 
-    return ret;
+    return true;
 }
 
 static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
@@ -557,7 +544,7 @@ static bool loadProg(const char* elfPath, bool* isCritical) {
         return false;
     }
 
-    if (createMaps(elfPath, elfFile, mapFds)) {
+    if (!createMaps(elfPath, elfFile, mapFds)) {
         ALOGE("Failed to create maps for %s", elfPath);
         return false;
     }
