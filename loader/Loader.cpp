@@ -442,17 +442,16 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license) {
+static bool loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license) {
     string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
         unique_fd& fd = cs[i].prog_fd;
-        int ret;
         string name = cs[i].name;
 
         if (!cs[i].prog_def.has_value()) {
             ALOGE("[%d] '%s' missing program definition! bad bpf.o build?", i, name.c_str());
-            return -EINVAL;
+            return false;
         }
 
         unsigned min_kver = cs[i].prog_def->min_kver;
@@ -509,31 +508,27 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             }
         }
 
-        if (!fd.ok()) return fd.get();
+        if (!fd.ok()) return false;
 
         if (!reuse) {
-            ret = bpfFdPin(fd, progPinLoc.c_str());
-            if (ret) {
-                int err = errno;
-                ALOGE("create %s -> %d [%d:%s]", progPinLoc.c_str(), ret, err, strerror(err));
-                return -err;
+            if (bpfFdPin(fd, progPinLoc.c_str())) {
+                ALOGE("create %s -> [%d]", progPinLoc.c_str(), errno);
+                return false;
             }
             if (chmod(progPinLoc.c_str(), 0440)) {
-                int err = errno;
-                ALOGE("chmod %s 0440 -> [%d:%s]", progPinLoc.c_str(), err, strerror(err));
-                return -err;
+                ALOGE("chmod %s 0440 -> [%d]", progPinLoc.c_str(), errno);
+                return false;
             }
             if (chown(progPinLoc.c_str(), (uid_t)cs[i].prog_def->uid,
                       (gid_t)cs[i].prog_def->gid)) {
-                int err = errno;
-                ALOGE("chown %s %d %d -> [%d:%s]", progPinLoc.c_str(), cs[i].prog_def->uid,
-                      cs[i].prog_def->gid, err, strerror(err));
-                return -err;
+                ALOGE("chown %s %d %d -> [%d]", progPinLoc.c_str(), cs[i].prog_def->uid,
+                      cs[i].prog_def->gid, errno);
+                return false;
             }
         }
     }
 
-    return 0;
+    return true;
 }
 
 static bool loadProg(const char* elfPath, bool* isCritical) {
@@ -571,7 +566,7 @@ static bool loadProg(const char* elfPath, bool* isCritical) {
 
     applyMapRelo(elfFile, mapFds, cs);
 
-    if (loadCodeSections(elfPath, cs, string(license.data()))) {
+    if (!loadCodeSections(elfPath, cs, string(license.data()))) {
         ALOGE("Failed to load programs");
         return false;
     }
