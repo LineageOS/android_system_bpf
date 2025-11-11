@@ -51,9 +51,6 @@
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 
-// Size of the BPF log buffer for verifier logging
-#define BPF_LOAD_LOG_SZ 0xfffff
-
 using android::base::EndsWith;
 using android::base::StartsWith;
 using android::base::unique_fd;
@@ -493,7 +490,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             reuse = true;
         } else {
-            vector<char> log_buf(BPF_LOAD_LOG_SZ, 0);
+            vector<char> log_buf(0xfffff, 0);
 
             union bpf_attr req = {
               .prog_type = cs[i].type,
