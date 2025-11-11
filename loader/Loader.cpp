@@ -16,19 +16,9 @@
 
 #define LOG_TAG "BpfLoader"
 
-#include <errno.h>
-#include <fcntl.h>
 #include <linux/bpf.h>
 #include <linux/elf.h>
-#include <log/log.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sysexits.h>
 #include <sys/stat.h>
-#include <sys/utsname.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include "BpfSyscallWrappers.h"
@@ -37,15 +27,11 @@
 #include "include/libbpf_android.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <fstream>
-#include <iostream>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include <android-base/cmsg.h>
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/strings.h>
