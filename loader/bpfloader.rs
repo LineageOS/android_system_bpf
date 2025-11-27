@@ -391,29 +391,6 @@ const DMABUF_ITERATOR_FILE: BpfFileDesc = BpfFileDesc {
     ..BPF_FILE_DESC_DEFAULT
 };
 
-const LOCK_CONTENTION_FILE: BpfFileDesc = BpfFileDesc {
-    filename: "/system/etc/bpf/lock_contention/bpfLockContention.bpf",
-    prefix: "lock_contention/",
-    maps: &[
-        // Readonly - This is used as a temporary store for calculating latencies,
-        // userspace doesn't need to write here.
-        MapDesc::new_kver(GID_SYSTEM, PERM_GRO, KVER_6_1, "contention_start_map"),
-        // Needs write permission to be cleared by userspace.
-        MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_6_1, "contention_latency_map"),
-    ],
-    progs: &[
-        ProgDesc {
-            auto_attach: true,
-            ..ProgDesc::new_kver(GID_SYSTEM, KVER_6_1, "tracepoint_lock_contention_begin")
-        },
-        ProgDesc {
-            auto_attach: true,
-            ..ProgDesc::new_kver(GID_SYSTEM, KVER_6_1, "tracepoint_lock_contention_end")
-        },
-    ],
-    ..BPF_FILE_DESC_DEFAULT
-};
-
 // TODO: Remove this code when fuse-bpf is upstreamed
 fn set_fuse_prog_type(prog: OpenProgramMut) -> Result<(), anyhow::Error> {
     let path = Path::new("/sys/fs/fuse/bpf_prog_type_fuse");
@@ -707,10 +684,6 @@ fn get_file_vec() -> Vec<BpfFileDesc> {
 
     if android_bpfprogs_flags::load_dmabuf_iterator() {
         file_vec.push(DMABUF_ITERATOR_FILE);
-    }
-
-    if android_bpfprogs_flags::load_bpf_lock_contention() {
-        file_vec.push(LOCK_CONTENTION_FILE);
     }
 
     file_vec
