@@ -486,6 +486,10 @@ fn parse_release(release: &str) -> (u32, u32, u32) {
 }
 
 fn kernel_version() -> Result<u32, anyhow::Error> {
+    if let Some(kver_override) = system_properties::read("ro.bpf.kver_override")? {
+        let (major, minor, sub) = parse_release(&kver_override);
+        return Ok(kver(major, minor, sub));
+    }
     let mut buf: MaybeUninit<utsname> = MaybeUninit::zeroed();
     // SAFETY: If uname returns 0, the buf should be properly initialized.
     if unsafe { uname(buf.as_mut_ptr()) } != 0 {
