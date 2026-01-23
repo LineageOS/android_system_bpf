@@ -16,6 +16,23 @@
       "message": "This is for 23.2. Since QPR1, bpfloader.rs now checks the kernel version using uname. This overrides the kernel version by ro.bpf.kver_override just like Connectivity.",
       "revId": "8484c39d173ac3d345db1539c97fb5bd75256758",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "19e027a7_ef0b13a2",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 34512
+      },
+      "writtenOn": "2026-01-23T09:31:01Z",
+      "side": 1,
+      "message": "commit grammar needs work",
+      "revId": "8484c39d173ac3d345db1539c97fb5bd75256758",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
