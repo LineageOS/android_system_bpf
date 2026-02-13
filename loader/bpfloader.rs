@@ -355,6 +355,23 @@ const FILE_ARR: &[BpfFileDesc] = &[
     },
 ];
 
+#[cfg(target_arch = "x86_64")]
+const CYCLE_PER_UID_FILE: BpfFileDesc = BpfFileDesc {
+    filename: "/system/etc/bpf/cpucycleperuid/cyclePerUid.bpf",
+    prefix: "cpucycleperuid/",
+    critical: false,
+    skip_on_user: false,
+    maps: &[
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "last_recorded_cycle_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "last_running_pid_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_cpu_cycle_map"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "tsc_events"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "desync_counter"),
+    ],
+    progs: &[ProgDesc::new(GID_SYSTEM, "tp_sched_switch")],
+    ..BPF_FILE_DESC_DEFAULT
+};
+
 const KERNEL_WAKELOCK_DURATION_FILE: BpfFileDesc = BpfFileDesc {
     filename: "/system/etc/bpf/kernelWakelockDuration.bpf",
     prefix: "kernelwakelockduration/",
@@ -711,6 +728,11 @@ fn get_file_vec() -> Vec<BpfFileDesc> {
 
     if android_bpfprogs_flags::load_bpf_lock_contention() {
         file_vec.push(LOCK_CONTENTION_FILE);
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    if backstage_power_flags::x86_cpu_energy_attribution() {
+        file_vec.push(CYCLE_PER_UID_FILE);
     }
 
     file_vec
