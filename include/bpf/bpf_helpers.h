@@ -70,50 +70,6 @@ struct kver_uint { unsigned int kver; };
 
 #define KVER_IS_AT_LEAST(kver, a, b, c) ((kver).kver >= KVER(a, b, c).kver)
 
-// Helpers for writing sdk level specific bpf programs
-//
-// Note: we choose to follow 'ro.build.version.sdk_full'
-// (or just 'sdk' if 'sdk_full' is not available) values,
-// multiplied by 100, with 1 added per QPR.
-// This will (eventually) match our bpfloader versioning scheme.
-//
-// This is just for ease of use, really these are only
-// ever compared to each other, so they only need to be
-// monotonically increasing.
-//
-// For now this easily suffices for our use case.
-//
-// Note: 24Q1 is the first trunk stable release,
-// and thus where quarters start possibly mattering.
-//
-// We leave most of these as commented out documentation,
-// as it's probably a bad idea to actually use them.
-
-struct sdk_level_uint { unsigned int sdk_level; };
-#define SDK_LEVEL_(v) ((struct sdk_level_uint){ .sdk_level = (v) })
-//      SDK_LEVEL_NONE   SDK_LEVEL_(0)    // mainline implies S+
-#define SDK_LEVEL_S      SDK_LEVEL_(3100) // Android 12     [31]
-//      SDK_LEVEL_Sv2    SDK_LEVEL_(3200) // Android 12L    [32]
-#define SDK_LEVEL_T      SDK_LEVEL_(3300) // Android 13     [33]
-#define SDK_LEVEL_U      SDK_LEVEL_(3400) // Android 14/U   [34]
-//      SDK_LEVEL_U_QPR1 SDK_LEVEL_(3401) // Android 14/U QPR1
-//      SDK_LEVEL_24Q1   SDK_LEVEL_(3402) // Android 14/U QPR2
-//      SDK_LEVEL_24Q2   SDK_LEVEL_(3403) // Android 14/U QPR3
-#define SDK_LEVEL_24Q3   SDK_LEVEL_(3500) // Android 15/V   [35]
-//      SDK_LEVEL_24Q4   SDK_LEVEL_(3501) // Android 15/V QPR1
-//      SDK_LEVEL_25Q1   SDK_LEVEL_(3502) // Android 15/V QPR2
-#define SDK_LEVEL_25Q2   SDK_LEVEL_(3600) // Android 16 (B) [36.0]
-//      SDK_LEVEL_25Q3   SDK_LEVEL_(3601) // Android 16 QPR
-#define SDK_LEVEL_25Q4   SDK_LEVEL_(3610) // Android 16.1   [36.1]
-//      SDK_LEVEL_26Q1   SDK_LEVEL_(3611) // Android 16.1 QPR
-#define SDK_LEVEL_26Q2   SDK_LEVEL_(3700) // Android 17 (C) [37.0]
-//      SDK_LEVEL_26Q3   SDK_LEVEL_(3701) // Android 17 QPR
-#define SDK_LEVEL_26Q4   SDK_LEVEL_(3710) // Android 17.1   [37.1]
-//      SDK_LEVEL_27Q1   SDK_LEVEL_(3711) // Android 17.1 QPR
-#define SDK_LEVEL_27Q2   SDK_LEVEL_(3800) // Android 18     [38.0]
-
-#define SDK_LEVEL_IS_AT_LEAST(lvl, v) ((lvl).sdk_level >= (SDK_LEVEL_##v).sdk_level)
-
 /*
  * BPFFS (ie. /sys/fs/bpf) labelling is as follows:
  *   subdirectory   selinux context      mainline  usecase / usable by
