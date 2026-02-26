@@ -49,9 +49,8 @@ const fn kver(a: u32, b: u32, c: u32) -> u32 {
 }
 
 const KVER_NONE: u32 = kver(0, 0, 0);
-const KVER_INF: u32 = 0xFFFFFFFF;
-const KVER_5_10: u32 = kver(5, 10, 0);
 const KVER_6_1: u32 = kver(6, 1, 0);
+const KVER_INF: u32 = 0xFFFFFFFF;
 
 enum KernelLevel {
     // Commented out unused due to rust complaining...
@@ -290,31 +289,15 @@ const FILE_ARR: &[BpfFileDesc] = &[
         filename: "/system/etc/bpf/memevents/bpfMemEvents.bpf",
         prefix: "memevents/",
         maps: &[
-            MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "ams_rb"),
-            MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "lmkd_rb"),
+            MapDesc::new(GID_SYSTEM, PERM_GRW, "ams_rb"),
+            MapDesc::new(GID_SYSTEM, PERM_GRW, "lmkd_rb"),
         ],
         progs: &[
-            ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "tracepoint_oom_mark_victim_ams"),
-            ProgDesc::new_kver(
-                GID_SYSTEM,
-                KVER_5_10,
-                "tracepoint_vmscan_mm_vmscan_direct_reclaim_begin_lmkd",
-            ),
-            ProgDesc::new_kver(
-                GID_SYSTEM,
-                KVER_5_10,
-                "tracepoint_vmscan_mm_vmscan_direct_reclaim_end_lmkd",
-            ),
-            ProgDesc::new_kver(
-                GID_SYSTEM,
-                KVER_5_10,
-                "tracepoint_vmscan_mm_vmscan_kswapd_wake_lmkd",
-            ),
-            ProgDesc::new_kver(
-                GID_SYSTEM,
-                KVER_5_10,
-                "tracepoint_vmscan_mm_vmscan_kswapd_sleep_lmkd",
-            ),
+            ProgDesc::new(GID_SYSTEM, "tracepoint_oom_mark_victim_ams"),
+            ProgDesc::new(GID_SYSTEM, "tracepoint_vmscan_mm_vmscan_direct_reclaim_begin_lmkd"),
+            ProgDesc::new(GID_SYSTEM, "tracepoint_vmscan_mm_vmscan_direct_reclaim_end_lmkd"),
+            ProgDesc::new(GID_SYSTEM, "tracepoint_vmscan_mm_vmscan_kswapd_wake_lmkd"),
+            ProgDesc::new(GID_SYSTEM, "tracepoint_vmscan_mm_vmscan_kswapd_sleep_lmkd"),
             ProgDesc::new_kver(
                 GID_SYSTEM,
                 KVER_6_1,
@@ -332,14 +315,14 @@ const FILE_ARR: &[BpfFileDesc] = &[
         filename: "/system/etc/bpf/memevents/bpfMemEventsTest.bpf",
         prefix: "memevents/",
         skip_on_user: true,
-        maps: &[MapDesc::new_kver(GID_SYSTEM, PERM_GRW, KVER_5_10, "rb")],
+        maps: &[MapDesc::new(GID_SYSTEM, PERM_GRW, "rb")],
         progs: &[
-            ProgDesc::new_kver(GID_SYSTEM, KVER_5_10, "tracepoint_oom_mark_victim"),
-            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_oom_kill"),
-            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_direct_reclaim_begin"),
-            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_direct_reclaim_end"),
-            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_kswapd_wake"),
-            ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_kswapd_sleep"),
+            ProgDesc::new(GID_SYSTEM, "tracepoint_oom_mark_victim"),
+            ProgDesc::new(GID_ROOT, "skfilter_oom_kill"),
+            ProgDesc::new(GID_ROOT, "skfilter_direct_reclaim_begin"),
+            ProgDesc::new(GID_ROOT, "skfilter_direct_reclaim_end"),
+            ProgDesc::new(GID_ROOT, "skfilter_kswapd_wake"),
+            ProgDesc::new(GID_ROOT, "skfilter_kswapd_sleep"),
             ProgDesc::new_kver(GID_SYSTEM, KVER_6_1, "skfilter_android_trigger_vendor_lmk_kill"),
             ProgDesc::new_kver(GID_ROOT, KVER_6_1, "skfilter_calculate_totalreserve_pages"),
         ],
@@ -349,8 +332,8 @@ const FILE_ARR: &[BpfFileDesc] = &[
         filename: "/system/etc/bpf/bpfRingbufProg.bpf",
         critical: true,
         skip_on_user: true,
-        maps: &[MapDesc::new_kver(GID_ROOT, PERM_GRW, KVER_5_10, "test_ringbuf")],
-        progs: &[ProgDesc::new_kver(GID_ROOT, KVER_5_10, "skfilter_ringbuf_test")],
+        maps: &[MapDesc::new(GID_ROOT, PERM_GRW, "test_ringbuf")],
+        progs: &[ProgDesc::new(GID_ROOT, "skfilter_ringbuf_test")],
         ..BPF_FILE_DESC_DEFAULT
     },
 ];
