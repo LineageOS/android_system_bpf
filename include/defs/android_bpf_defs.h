@@ -20,9 +20,10 @@
 
 #include <sys/cdefs.h>
 
-#define DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)               \
+#define DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid, mapflags)     \
     struct {                                                                                   \
         __uint(type, BPF_MAP_TYPE_##TYPE);                                                     \
+        __uint(map_flags, mapflags);                                                           \
         __type(key, KeyType);                                                                  \
         __type(value, ValueType);                                                              \
         __uint(max_entries, num_entries);                                                      \
@@ -43,11 +44,11 @@
     };
 
 #define DEFINE_BPF_MAP_GRW(the_map, TYPE, KeyType, ValueType, num_entries, gid) \
-    DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)
+    DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid, 0)
 #define DEFINE_BPF_MAP_GWO(the_map, TYPE, KeyType, ValueType, num_entries, gid) \
-    DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)
+    DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid, 0)
 #define DEFINE_BPF_MAP_GRO(the_map, TYPE, KeyType, ValueType, num_entries, gid) \
-    DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid)
+    DEFINE_BPF_MAP_BASE(the_map, TYPE, KeyType, ValueType, num_entries, gid, 0)
 
 #define DEFINE_BPF_RINGBUF(the_map, ValueType, num_entries, usr, grp, md)              \
     struct {                                                                           \
