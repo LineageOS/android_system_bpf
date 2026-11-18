@@ -23,21 +23,23 @@ use libbpf_rs::{
     set_print, AsRawLibbpf, MapCore, ObjectBuilder, OpenObject, OpenProgramMut, PrintLevel,
     ProgramType,
 };
-use libbpf_sys::{bpf_map__autocreate, bpf_program__set_type};
+use libbpf_sys::{
+    bpf_map__autocreate, bpf_obj_get_opts, bpf_program__set_type, BPF_F_RDONLY,
+};
 use libc::{
     mode_t, uname, utsname, S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU, S_ISVTX, S_IWGRP,
     S_IWOTH, S_IWUSR,
 };
 use log::{debug, error, info, warn, Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use rustutils::android::system_properties;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 use std::{
     cmp::max,
     env, fs,
     fs::{File, Permissions},
     io::{LineWriter, Write},
-    os::fd::FromRawFd,
+    os::fd::{AsFd, FromRawFd, OwnedFd},
     os::unix::fs::{chown, PermissionsExt},
     panic,
     path::Path,
@@ -209,6 +211,8 @@ struct BpfFileDesc {
     allow_missing: bool,
     maps: &'static [MapDesc],
     progs: &'static [ProgDesc],
+    // Maps already pinned by another loader, used instead of creating them: (name, pin path).
+    reuse_maps: &'static [(&'static str, &'static str)],
 }
 
 const PERM_GRW: mode_t = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
@@ -232,6 +236,7 @@ const BPF_FILE_DESC_DEFAULT: BpfFileDesc = BpfFileDesc {
     allow_missing: false,
     maps: &[],
     progs: &[],
+    reuse_maps: &[],
 };
 
 // Sections like .rodata, .rodata.str1.1, etc. do not require pinning
@@ -558,6 +563,21 @@ fn is_user_build() -> Result<bool, anyhow::Error> {
     }
 }
 
+// Opens a pinned map read-only, which is all a reused map needs and all bpfloader may do.
+fn bpf_obj_get_read_only(path: &str) -> Result<OwnedFd, anyhow::Error> {
+    let pathname = CString::new(path)?;
+    let opts = bpf_obj_get_opts {
+        sz: std::mem::size_of::<bpf_obj_get_opts>() as _,
+        file_flags: BPF_F_RDONLY as _,
+        path_fd: 0,
+    };
+    // SAFETY: pathname and opts are valid for the duration of the call.
+    let fd = unsafe { bpf_obj_get_opts(pathname.as_ptr(), &opts) };
+    ensure!(fd >= 0, "Failed to open {path} read-only: {}", std::io::Error::from_raw_os_error(-fd));
+    // SAFETY: libbpf returned a new file descriptor that nothing else owns.
+    Ok(unsafe { OwnedFd::from_raw_fd(fd) })
+}
+
 fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     info!("Loading {}", file_desc.filename);
     if file_desc.skip_on_user && is_user_build()? {
@@ -583,6 +603,15 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     // section names are not recognized, so the program type must be set explicitly for them.
     set_prog_types(&mut open_file)?;
     set_skip_loading(&mut open_file, file_desc)?;
+    for (name, path) in file_desc.reuse_maps {
+        let mut map = open_file
+            .maps_mut()
+            .find(|map| map.name().to_str() == Some(*name))
+            .ok_or_else(|| anyhow!("Map {name} to reuse not found"))?;
+        let fd = bpf_obj_get_read_only(path)?;
+        map.reuse_fd(fd.as_fd())
+            .map_err(|e| anyhow!("Failed to reuse {path} for map {name}: {e}"))?;
+    }
     let mut loaded_file = open_file.load()?;
 
     let bpffs_path = "/sys/fs/bpf/".to_owned() + file_desc.prefix;
@@ -593,6 +622,9 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
         let name =
             map.name().to_str().ok_or_else(|| anyhow!("Failed to parse map name into UTF-8"))?;
         let name = String::from(name);
+        if file_desc.reuse_maps.iter().any(|(reused, _)| *reused == name) {
+            continue;
+        }
         for map_desc in file_desc.maps {
             if map_desc.name == name {
                 desc_found = true;
@@ -701,8 +733,44 @@ fn libbpf_worker(file_desc: &BpfFileDesc) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+const FIREWALL_FILE: BpfFileDesc = BpfFileDesc {
+    filename: "/system/etc/bpf/firewall.bpf",
+    prefix: "firewall/",
+    allow_missing: true,
+    maps: &[
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_rules"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "uid_networks"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "user_flags"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "iface_transport"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "net_transport"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "vpn_ranges"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "ip4_block"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "ip6_block"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "ip4_allow"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "ip6_allow"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "port_rules"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "learned"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "scope_limits"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "counters"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "domain_rules"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "lan4"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "lan6"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "refusals"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "refusal_stats"),
+    ],
+    progs: &[
+        ProgDesc::new(GID_SYSTEM, "egress"),
+        ProgDesc::new(GID_SYSTEM, "ingress"),
+        ProgDesc::new(GID_SYSTEM, "connect4"),
+        ProgDesc::new(GID_SYSTEM, "connect6"),
+    ],
+    reuse_maps: &[("cookie_tag_map", "/sys/fs/bpf/netd_shared/map_netd_cookie_tag_map")],
+    ..BPF_FILE_DESC_DEFAULT
+};
+
 fn get_file_vec() -> Vec<BpfFileDesc> {
     let mut file_vec = FILE_ARR.to_vec();
+    file_vec.push(FIREWALL_FILE);
 
     if android_bpfprogs_flags::kernel_wakelock_duration() {
         file_vec.push(KERNEL_WAKELOCK_DURATION_FILE);
@@ -787,5 +855,28 @@ mod tests {
         assert_eq!(parse_release("6.1"), (6, 1, 0));
         assert_eq!(parse_release("6"), (6, 0, 0));
         assert_eq!(parse_release("android14"), (0, 0, 0));
+    }
+
+    #[test]
+    fn read_only_open_refuses_writes() {
+        use std::os::fd::AsRawFd;
+        let fd = bpf_obj_get_read_only("/sys/fs/bpf/netd_shared/map_netd_cookie_tag_map").unwrap();
+        let key = 0u64;
+        let value = [0u8; 8];
+        // SAFETY: key and value outlive the call and match the map's 8-byte key and value.
+        let ret = unsafe {
+            libbpf_sys::bpf_map_update_elem(
+                fd.as_raw_fd(),
+                &key as *const u64 as *const std::ffi::c_void,
+                value.as_ptr() as *const std::ffi::c_void,
+                0,
+            )
+        };
+        assert!(ret < 0, "write through a read-only map fd succeeded");
+    }
+
+    #[test]
+    fn read_only_open_of_missing_pin_fails() {
+        assert!(bpf_obj_get_read_only("/sys/fs/bpf/firewall/map_firewall_missing").is_err());
     }
 }
