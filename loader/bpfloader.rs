@@ -757,6 +757,10 @@ const FIREWALL_FILE: BpfFileDesc = BpfFileDesc {
         MapDesc::new(GID_SYSTEM, PERM_GRW, "lan6"),
         MapDesc::new(GID_SYSTEM, PERM_GRW, "refusals"),
         MapDesc::new(GID_SYSTEM, PERM_GRW, "refusal_stats"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "scope_lists"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "list_ip4"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "list_ip6"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "list_files"),
     ],
     progs: &[
         ProgDesc::new(GID_SYSTEM, "egress"),
