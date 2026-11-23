@@ -16,6 +16,24 @@
       "message": "Needs the firewall\u0027s https://github.com/Uldiniad/android_packages_apps_Firewall/commit/763bb4effac55aa24756420a8089290e7852db07, whose BPF object has these maps.",
       "revId": "461ddc8a65a3ae2e12641056fa5d99dfff849cce",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "905391a2_47c3bc64",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 15060
+      },
+      "writtenOn": "2026-11-23T19:28:06Z",
+      "side": 1,
+      "message": "Now https://github.com/Uldiniad/android_packages_apps_Firewall/commit/20794af00808c9e6e72b0ed6a2b3a1473404a7dc, the same change after removing three unused imports.",
+      "parentUuid": "36edf798_907d8b38",
+      "revId": "461ddc8a65a3ae2e12641056fa5d99dfff849cce",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
