@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c5b0063d_c40d189f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 15060
+      },
+      "writtenOn": "2026-11-25T20:55:12Z",
+      "side": 1,
+      "message": "Needs the firewall\u0027s https://github.com/Uldiniad/android_packages_apps_Firewall/commit/95d985b35dcdbe5b01d1ac221c3382eacb1429d8, whose BPF object has these maps.",
+      "revId": "58d7e60a74225693513d4ff4d96485a731d418b9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
