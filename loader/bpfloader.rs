@@ -761,12 +761,14 @@ const FIREWALL_FILE: BpfFileDesc = BpfFileDesc {
         MapDesc::new(GID_SYSTEM, PERM_GRW, "list_ip4"),
         MapDesc::new(GID_SYSTEM, PERM_GRW, "list_ip6"),
         MapDesc::new(GID_SYSTEM, PERM_GRW, "list_files"),
+        MapDesc::new(GID_SYSTEM, PERM_GRW, "hotspot_upstream"),
     ],
     progs: &[
         ProgDesc::new(GID_SYSTEM, "egress"),
         ProgDesc::new(GID_SYSTEM, "ingress"),
         ProgDesc::new(GID_SYSTEM, "connect4"),
         ProgDesc::new(GID_SYSTEM, "connect6"),
+        ProgDesc::new(GID_SYSTEM, "hotspot"),
     ],
     reuse_maps: &[("cookie_tag_map", "/sys/fs/bpf/netd_shared/map_netd_cookie_tag_map")],
     ..BPF_FILE_DESC_DEFAULT
